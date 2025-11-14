@@ -29,6 +29,17 @@ bool EnablePrivilege(bool impersonating, int privilege_value)
         return false;
     }
 
+    // Validate privilege value - only allow known privileges used in the application
+    switch (privilege_value)
+    {
+    case SE_TCB_PRIVILEGE:
+    case SE_DEBUG_PRIVILEGE:
+    case SE_IMPERSONATE_PRIVILEGE:
+        break; // Valid privilege
+    default:
+        return false; // Invalid privilege
+    }
+
     bool previous;
     NTSTATUS status = pRtlAdjustPrivilege(privilege_value, true, impersonating, &previous);
     return NT_SUCCESS(status);
@@ -240,6 +251,35 @@ bool CreateProcessWithTIToken(LPCWSTR targetPath, DWORD priority)
 
 BOOL CheckAdministratorPrivileges()
 {
+    // First check if we have Trusted Installer privileges
+    HANDLE hToken = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+    {
+        PTOKEN_PRIVILEGES privileges = NULL;
+        DWORD privilegesSize;
+        GetTokenInformation(hToken, TokenPrivileges, NULL, 0, &privilegesSize);
+        privileges = (PTOKEN_PRIVILEGES)LocalAlloc(LPTR, privilegesSize);
+        if (privileges)
+        {
+            if (GetTokenInformation(hToken, TokenPrivileges, privileges, privilegesSize, &privilegesSize))
+            {
+                for (DWORD i = 0; i < privileges->PrivilegeCount; i++)
+                {
+                    if (privileges->Privileges[i].Luid.LowPart == SE_TCB_PRIVILEGE &&
+                        (privileges->Privileges[i].Attributes & SE_PRIVILEGE_ENABLED))
+                    {
+                        LocalFree(privileges);
+                        CloseHandle(hToken);
+                        return TRUE; // Has TCB privilege (Trusted Installer)
+                    }
+                }
+            }
+            LocalFree(privileges);
+        }
+        CloseHandle(hToken);
+    }
+
+    // Check traditional administrator privileges
     SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
     PSID AdministratorsGroup;
     if (!AllocateAndInitializeSid(&NtAuthority, 2,
@@ -258,7 +298,7 @@ BOOL CheckAdministratorPrivileges()
 
     if (!bMember) return FALSE;
 
-    HANDLE hToken = NULL;
+    hToken = NULL;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
         return FALSE;
 

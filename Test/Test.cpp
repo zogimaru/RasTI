@@ -178,9 +178,12 @@ int _tmain(int argc, _TCHAR* argv[]) {
 
     if (passed == total) {
         std::cout << "All tests passed! ✅" << std::endl;
-        return 0;
     } else {
         std::cout << "Some tests failed! ❌" << std::endl;
-        return 1;
     }
+
+    std::cout << std::endl << "Press Enter to exit...";
+    std::cin.get();
+
+    return (passed == total) ? 0 : 1;
 }
