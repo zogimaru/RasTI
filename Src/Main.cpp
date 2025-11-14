@@ -4,6 +4,7 @@
 #pragma hdrstop
 #include <tchar.h>
 #include <string>
+#include <cctype>
 #include "Core.h"
 //---------------------------------------------------------------------------
 USEFORM("GUI.cpp", Main);
@@ -32,7 +33,28 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 				{
 					// Extract priority value
 					AnsiString priorityStr = param.SubString(param.Pos(":") + 1, param.Length());
+
+					// Validate priority string contains only digits
+					bool isValidPriorityStr = true;
+					for (int j = 1; j <= priorityStr.Length(); j++) {
+						if (!isdigit(priorityStr[j])) {
+							isValidPriorityStr = false;
+							break;
+						}
+					}
+
+					if (!isValidPriorityStr) {
+						printf("Error: Invalid priority format. Use numbers 1-6.\n");
+						return 1;
+					}
+
 					int prioValue = StrToIntDef(priorityStr, 3); // Default to 3 (NORMAL)
+
+					// Validate priority range
+					if (prioValue < 1 || prioValue > 6) {
+						printf("Error: Priority must be between 1 and 6.\n");
+						return 1;
+					}
 
 					switch (prioValue)
 					{
@@ -44,6 +66,12 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 					case 6: priority = REALTIME_PRIORITY_CLASS; break;
 					default: priority = NORMAL_PRIORITY_CLASS; break;
 					}
+				}
+				else
+				{
+					// Unknown parameter
+					printf("Error: Unknown parameter '%s'. Supported parameters: /priority:N or -priority:N\n", param.c_str());
+					return 1;
 				}
 			}
 
@@ -125,8 +153,16 @@ bool RunExecutableFromCommandLine(const AnsiString& exePath, int priority)
 	printf("\n");
 
 	int wPathLen = MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, NULL, 0);
+	if (wPathLen == 0 || wPathLen > MAX_PATH) {
+		printf("Error: Failed to convert path to wide string or path too long\n");
+		return false;
+	}
 	std::wstring wPath(wPathLen, 0);
-	MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, &wPath[0], wPathLen);
+	int result = MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, &wPath[0], wPathLen);
+	if (result == 0) {
+		printf("Error: Failed to convert path to wide string\n");
+		return false;
+	}
 	wPath.resize(wPathLen - 1);
 
 	printf("[+] Mendapatkan TrustedInstaller token...\n");
@@ -139,7 +175,8 @@ bool RunExecutableFromCommandLine(const AnsiString& exePath, int priority)
 	}
 	else
 	{
-		printf("[-] Gagal menjalankan proses (Error Code: %lu)\n", GetLastError());
+		DWORD errorCode = GetLastError();
+		printf("[-] Gagal menjalankan proses (Error Code: %lu)\n", errorCode);
 	}
 
 	printf("=========================================\n");

@@ -77,8 +77,16 @@ void __fastcall TMain::RunButtonClick(TObject *Sender)
 	StatusMemo->Lines->Add("");
 
 	int wPathLen = MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, NULL, 0);
+	if (wPathLen == 0 || wPathLen > MAX_PATH) {
+		StatusMemo->Lines->Add(GetErrorMessage("Failed to convert path to wide string or path too long"));
+		return;
+	}
 	std::wstring wPath(wPathLen, 0);
-	MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, &wPath[0], wPathLen);
+	int result = MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, &wPath[0], wPathLen);
+	if (result == 0) {
+		StatusMemo->Lines->Add(GetErrorMessage("Failed to convert path to wide string"));
+		return;
+	}
 	wPath.resize(wPathLen - 1);
 
 	StatusMemo->Lines->Add("[+] Mendapatkan TrustedInstaller token...");
@@ -91,7 +99,8 @@ void __fastcall TMain::RunButtonClick(TObject *Sender)
 	}
 	else
 	{
-		StatusMemo->Lines->Add(GetErrorMessageCode("Gagal menjalankan proses", GetLastError()));
+		DWORD errorCode = GetLastError();
+		StatusMemo->Lines->Add(GetErrorMessageCode("Gagal menjalankan proses", errorCode));
 	}
 
 	StatusMemo->Lines->Add("=========================================");

@@ -112,6 +112,8 @@ HANDLE GetTrustedInstallerToken()
     bool impersonating = false;
     HANDLE trustedInstallerToken = NULL;
     PSID trustedInstallerSid = NULL;
+    HANDLE currentToken = NULL;
+    PTOKEN_GROUPS tokenGroups = NULL;
 
     do
     {
@@ -134,9 +136,6 @@ HANDLE GetTrustedInstallerToken()
             break;
         }
 
-        HANDLE currentToken;
-        PTOKEN_GROUPS tokenGroups = NULL;
-
         if (impersonating)
         {
             if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &currentToken))
@@ -152,19 +151,21 @@ HANDLE GetTrustedInstallerToken()
             }
         }
 
-        DWORD tokenGroupsSize;
-        GetTokenInformation(currentToken, TokenGroups, NULL, 0, &tokenGroupsSize);
+        DWORD tokenGroupsSize = 0;
+        if (!GetTokenInformation(currentToken, TokenGroups, NULL, 0, &tokenGroupsSize) &&
+            GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+        {
+            break;
+        }
+
         tokenGroups = (PTOKEN_GROUPS)LocalAlloc(LPTR, tokenGroupsSize);
         if (!tokenGroups)
         {
-            CloseHandle(currentToken);
             break;
         }
 
         if (!GetTokenInformation(currentToken, TokenGroups, tokenGroups, tokenGroupsSize, &tokenGroupsSize))
         {
-            LocalFree(tokenGroups);
-            CloseHandle(currentToken);
             break;
         }
 
@@ -183,15 +184,24 @@ HANDLE GetTrustedInstallerToken()
             NULL, NULL, NULL, NULL
         );
 
-        CloseHandle(currentToken);
-        LocalFree(tokenGroups);
-
         if (!logonSuccess)
         {
             DWORD logonError = GetLastError();
+            (void)logonError; // Avoid unused variable warning
         }
 
     } while (false);
+
+    // Cleanup resources
+    if (tokenGroups)
+    {
+        LocalFree(tokenGroups);
+    }
+
+    if (currentToken)
+    {
+        CloseHandle(currentToken);
+    }
 
     if (impersonating)
     {

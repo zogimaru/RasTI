@@ -83,22 +83,40 @@ bool TestStringConversion() {
 
     AnsiString empty = "";
     int wEmptyLen = MultiByteToWideChar(CP_ACP, 0, empty.c_str(), -1, NULL, 0);
+    if (wEmptyLen == 0 || wEmptyLen > MAX_PATH) {
+        TEST_ASSERT(false, "Failed to convert empty string");
+    }
     std::wstring wEmpty(wEmptyLen, 0);
-    MultiByteToWideChar(CP_ACP, 0, empty.c_str(), -1, &wEmpty[0], wEmptyLen);
+    int result = MultiByteToWideChar(CP_ACP, 0, empty.c_str(), -1, &wEmpty[0], wEmptyLen);
+    if (result == 0) {
+        TEST_ASSERT(false, "Failed to convert empty string");
+    }
     wEmpty.resize(wEmptyLen - 1);
     TEST_ASSERT(wEmpty.empty(), "Empty string conversion should work");
 
     AnsiString normal = "test.exe";
     int wNormalLen = MultiByteToWideChar(CP_ACP, 0, normal.c_str(), -1, NULL, 0);
+    if (wNormalLen == 0 || wNormalLen > MAX_PATH) {
+        TEST_ASSERT(false, "Failed to convert normal string");
+    }
     std::wstring wNormal(wNormalLen, 0);
-    MultiByteToWideChar(CP_ACP, 0, normal.c_str(), -1, &wNormal[0], wNormalLen);
+    result = MultiByteToWideChar(CP_ACP, 0, normal.c_str(), -1, &wNormal[0], wNormalLen);
+    if (result == 0) {
+        TEST_ASSERT(false, "Failed to convert normal string");
+    }
     wNormal.resize(wNormalLen - 1);
     TEST_ASSERT(wNormal == L"test.exe", "Normal string conversion should work");
 
     AnsiString special = "test_123.exe";
     int wSpecialLen = MultiByteToWideChar(CP_ACP, 0, special.c_str(), -1, NULL, 0);
+    if (wSpecialLen == 0 || wSpecialLen > MAX_PATH) {
+        TEST_ASSERT(false, "Failed to convert special string");
+    }
     std::wstring wSpecial(wSpecialLen, 0);
-    MultiByteToWideChar(CP_ACP, 0, special.c_str(), -1, &wSpecial[0], wSpecialLen);
+    result = MultiByteToWideChar(CP_ACP, 0, special.c_str(), -1, &wSpecial[0], wSpecialLen);
+    if (result == 0) {
+        TEST_ASSERT(false, "Failed to convert special string");
+    }
     wSpecial.resize(wSpecialLen - 1);
     TEST_ASSERT(wSpecial == L"test_123.exe", "Special character string conversion should work");
 
@@ -143,10 +161,14 @@ bool TestErrorMessages() {
     TEST_PASS("Error message functions format correctly");
 }
 
+// Function pointer type for test functions
+typedef bool (*TestFunction)();
+
 // Structure for test results
 struct TestResult {
     std::string name;
     std::string description;
+    TestFunction func;
     bool passed;
     double duration; // in milliseconds
 };
@@ -226,20 +248,20 @@ int _tmain(int argc, _TCHAR* argv[]) {
     std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
     std::cout << std::endl;
 
-    // Define test categories
+    // Define test categories with function pointers
     std::vector<TestCategory> categories = {
         {"PRIVILEGE TESTS", "🔐", {
-            {"ResolveDynamicFunctions", "Function pointers loaded correctly", false, 0.0},
-            {"EnablePrivilege", "Invalid privileges rejected properly", false, 0.0}
+            {"ResolveDynamicFunctions", "Function pointers loaded correctly", TestResolveDynamicFunctions, false, 0.0},
+            {"EnablePrivilege", "Invalid privileges rejected properly", TestEnablePrivilege, false, 0.0}
         }},
         {"SECURITY TESTS", "🛡️ ", {
-            {"CheckAdministratorPrivileges", "TI privileges detected", false, 0.0},
-            {"GetTrustedInstallerToken", "Handles NULL gracefully", false, 0.0},
-            {"SecurityValidations", "Path traversal prevented", false, 0.0}
+            {"CheckAdministratorPrivileges", "TI privileges detected", TestCheckAdministratorPrivileges, false, 0.0},
+            {"GetTrustedInstallerToken", "Handles NULL gracefully", TestGetTrustedInstallerToken, false, 0.0},
+            {"SecurityValidations", "Path traversal prevented", TestSecurityValidations, false, 0.0}
         }},
         {"UTILITY TESTS", "🔧", {
-            {"StringConversion", "Safe encoding/decoding", false, 0.0},
-            {"ErrorMessages", "Proper formatting", false, 0.0}
+            {"StringConversion", "Safe encoding/decoding", TestStringConversion, false, 0.0},
+            {"ErrorMessages", "Proper formatting", TestErrorMessages, false, 0.0}
         }}
     };
 
@@ -256,13 +278,9 @@ int _tmain(int argc, _TCHAR* argv[]) {
             std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
             bool result = false;
-            if (test.name == "ResolveDynamicFunctions") result = TestResolveDynamicFunctions();
-            else if (test.name == "EnablePrivilege") result = TestEnablePrivilege();
-            else if (test.name == "CheckAdministratorPrivileges") result = TestCheckAdministratorPrivileges();
-            else if (test.name == "GetTrustedInstallerToken") result = TestGetTrustedInstallerToken();
-            else if (test.name == "SecurityValidations") result = TestSecurityValidations();
-            else if (test.name == "StringConversion") result = TestStringConversion();
-            else if (test.name == "ErrorMessages") result = TestErrorMessages();
+            if (test.func) {
+                result = test.func();
+            }
 
             // Restore cout
             std::cout.rdbuf(old);
