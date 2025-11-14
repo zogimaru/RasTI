@@ -20,16 +20,54 @@
 *.tds
 __history/
 __recovery/
+__astcache/
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Precompiled Headers
+*.gch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.out
+*.app
+
+# Debug information files
+*.dwo
 
 # Build directories
 Build/
 Bin/
 Debug/
 Release/
+Tmp/
 
 # Windows files
-*.exe
-*.pdb
 Thumbs.db
 Desktop.ini
 
@@ -55,4 +93,3 @@ Desktop.ini
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db
