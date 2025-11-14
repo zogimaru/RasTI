@@ -43,8 +43,8 @@
         <DCC_CBuilderOutput>JPHNE</DCC_CBuilderOutput>
         <DynamicRTL>true</DynamicRTL>
         <UsePackages>false</UsePackages>
-        <IntermediateOutputDir>.\Build\$(Platform)\$(Config)\tests</IntermediateOutputDir>
-        <FinalOutputDir>.\Build\$(Platform)\$(Config)\tests</FinalOutputDir>
+        <IntermediateOutputDir>.\Build\$(Platform)\$(Config)\Test</IntermediateOutputDir>
+        <FinalOutputDir>.\Build\$(Platform)\$(Config)\Test</FinalOutputDir>
         <BCC_wpar>false</BCC_wpar>
         <BCC_OptimizeForSpeed>true</BCC_OptimizeForSpeed>
         <BCC_ExtendedErrorInfo>true</BCC_ExtendedErrorInfo>

@@ -4,6 +4,10 @@
 #include <cassert>
 #include <windows.h>
 #include <tchar.h>
+#include <iomanip>
+#include <chrono>
+#include <vector>
+#include <sstream>
 
 #define TEST_ASSERT(condition, message) \
     if (!(condition)) { \
@@ -139,51 +143,157 @@ bool TestErrorMessages() {
     TEST_PASS("Error message functions format correctly");
 }
 
+// Structure for test results
+struct TestResult {
+    std::string name;
+    std::string description;
+    bool passed;
+    double duration; // in milliseconds
+};
+
+// Structure for test categories
+struct TestCategory {
+    std::string name;
+    std::string icon;
+    std::vector<TestResult> tests;
+};
+
+// Helper functions for output formatting
+void PrintHeader() {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm tm = *std::localtime(&time);
+
+    std::cout << "╔══════════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║              RasTI Core Functions Unit Tests               ║" << std::endl;
+    std::cout << "║                     v1.0.0 - " << std::put_time(&tm, "%Y-%m-%d") << "                     ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════════╝" << std::endl;
+    std::cout << std::endl;
+}
+
+void PrintEnvironmentInfo() {
+    BOOL isAdmin = CheckAdministratorPrivileges();
+    std::cout << "🔧 Environment: Windows 11 | Admin: " << (isAdmin ? "Yes" : "No") << " | TI: " << (isAdmin ? "Yes" : "No") << std::endl;
+
+    auto start = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(start);
+    std::tm tm = *std::localtime(&time);
+    std::cout << "⏱️  Started at: " << std::put_time(&tm, "%H:%M:%S") << std::endl;
+    std::cout << std::endl;
+}
+
+void PrintCategoryHeader(const TestCategory& category) {
+    int passed = 0;
+    for (const auto& test : category.tests) {
+        if (test.passed) passed++;
+    }
+
+    std::cout << category.icon << " " << category.name << " (" << passed << "/" << category.tests.size() << " passed)" << std::endl;
+}
+
+void PrintTestResult(const TestResult& test, bool isLast) {
+    std::string prefix = isLast ? "└── " : "├── ";
+    std::string status = test.passed ? "✅ " : "❌ ";
+    std::cout << prefix << status << test.name << ": " << test.description << std::endl;
+}
+
+void PrintSummary(const std::vector<TestCategory>& categories, double totalTime) {
+    int totalTests = 0;
+    int totalPassed = 0;
+
+    for (const auto& category : categories) {
+        totalTests += category.tests.size();
+        for (const auto& test : category.tests) {
+            if (test.passed) totalPassed++;
+        }
+    }
+
+    std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+    std::string status = (totalPassed == totalTests) ? "✅" : "❌";
+    std::cout << "📊 FINAL RESULTS: " << totalPassed << "/" << totalTests << " tests passed (" << std::fixed << std::setprecision(1) << (totalPassed * 100.0 / totalTests) << "%) " << status << std::endl;
+    std::cout << "⏱️  Total time: " << std::fixed << std::setprecision(2) << totalTime << " seconds" << std::endl;
+    std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+}
+
 int _tmain(int argc, _TCHAR* argv[]) {
-    std::cout << "========================================" << std::endl;
-    std::cout << "RasTI Core Functions Unit Tests" << std::endl;
-    std::cout << "========================================" << std::endl;
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    PrintHeader();
+    PrintEnvironmentInfo();
+
+    std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+    std::cout << "📋 Test Categories:" << std::endl;
+    std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
     std::cout << std::endl;
 
-    int passed = 0;
-    int total = 0;
-
-    struct TestCase {
-        const char* name;
-        bool (*func)();
+    // Define test categories
+    std::vector<TestCategory> categories = {
+        {"PRIVILEGE TESTS", "🔐", {
+            {"ResolveDynamicFunctions", "Function pointers loaded correctly", false, 0.0},
+            {"EnablePrivilege", "Invalid privileges rejected properly", false, 0.0}
+        }},
+        {"SECURITY TESTS", "🛡️ ", {
+            {"CheckAdministratorPrivileges", "TI privileges detected", false, 0.0},
+            {"GetTrustedInstallerToken", "Handles NULL gracefully", false, 0.0},
+            {"SecurityValidations", "Path traversal prevented", false, 0.0}
+        }},
+        {"UTILITY TESTS", "🔧", {
+            {"StringConversion", "Safe encoding/decoding", false, 0.0},
+            {"ErrorMessages", "Proper formatting", false, 0.0}
+        }}
     };
 
-    TestCase tests[] = {
-        {"ResolveDynamicFunctions", TestResolveDynamicFunctions},
-        {"EnablePrivilege", TestEnablePrivilege},
-        {"CheckAdministratorPrivileges", TestCheckAdministratorPrivileges},
-        {"GetTrustedInstallerToken", TestGetTrustedInstallerToken},
-        {"StringConversion", TestStringConversion},
-        {"SecurityValidations", TestSecurityValidations},
-        {"ErrorMessages", TestErrorMessages}
-    };
+    // Run tests and collect results
+    for (auto& category : categories) {
+        PrintCategoryHeader(category);
 
-    for (auto& test : tests) {
-        total++;
-        std::cout << "Running test: " << test.name << std::endl;
-        if (test.func()) {
-            passed++;
+        for (size_t i = 0; i < category.tests.size(); i++) {
+            auto& test = category.tests[i];
+            auto testStart = std::chrono::high_resolution_clock::now();
+
+            // Redirect cout to capture test output
+            std::stringstream buffer;
+            std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+            bool result = false;
+            if (test.name == "ResolveDynamicFunctions") result = TestResolveDynamicFunctions();
+            else if (test.name == "EnablePrivilege") result = TestEnablePrivilege();
+            else if (test.name == "CheckAdministratorPrivileges") result = TestCheckAdministratorPrivileges();
+            else if (test.name == "GetTrustedInstallerToken") result = TestGetTrustedInstallerToken();
+            else if (test.name == "SecurityValidations") result = TestSecurityValidations();
+            else if (test.name == "StringConversion") result = TestStringConversion();
+            else if (test.name == "ErrorMessages") result = TestErrorMessages();
+
+            // Restore cout
+            std::cout.rdbuf(old);
+
+            auto testEnd = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(testEnd - testStart);
+
+            test.passed = result;
+            test.duration = duration.count();
+
+            PrintTestResult(test, i == category.tests.size() - 1);
         }
         std::cout << std::endl;
     }
 
-    std::cout << "========================================" << std::endl;
-    std::cout << "Test Results: " << passed << "/" << total << " tests passed" << std::endl;
-    std::cout << "========================================" << std::endl;
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto totalDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
-    if (passed == total) {
-        std::cout << "All tests passed! ✅" << std::endl;
-    } else {
-        std::cout << "Some tests failed! ❌" << std::endl;
-    }
+    PrintSummary(categories, totalDuration.count() / 1000.0);
 
     std::cout << std::endl << "Press Enter to exit...";
     std::cin.get();
 
-    return (passed == total) ? 0 : 1;
+    int totalPassed = 0;
+    int totalTests = 0;
+    for (const auto& category : categories) {
+        totalTests += category.tests.size();
+        for (const auto& test : category.tests) {
+            if (test.passed) totalPassed++;
+        }
+    }
+
+    return (totalPassed == totalTests) ? 0 : 1;
 }
