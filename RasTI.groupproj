@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{05EBFAEA-70CF-483D-BF7E-9BCEDEF117AC}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Test.cbproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="RasTI.cbproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Test">
+        <MSBuild Projects="Test.cbproj"/>
+    </Target>
+    <Target Name="Test:Clean">
+        <MSBuild Projects="Test.cbproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Test:Make">
+        <MSBuild Projects="Test.cbproj" Targets="Make"/>
+    </Target>
+    <Target Name="RasTI">
+        <MSBuild Projects="RasTI.cbproj"/>
+    </Target>
+    <Target Name="RasTI:Clean">
+        <MSBuild Projects="RasTI.cbproj" Targets="Clean"/>
+    </Target>
+    <Target Name="RasTI:Make">
+        <MSBuild Projects="RasTI.cbproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Test;RasTI"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Test:Clean;RasTI:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Test:Make;RasTI:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

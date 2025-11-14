@@ -1,0 +1,58 @@
+# C++ Builder files
+*.obj
+*.exe
+*.dll
+*.bpl
+*.dcp
+*.dcu
+*.dsk
+*.local
+*.identcache
+*.projdata
+*.pch
+*.ilc
+*.ild
+*.ilf
+*.ils
+*.map
+*.pdi
+*.res
+*.tds
+__history/
+__recovery/
+
+# Build directories
+Build/
+Bin/
+Debug/
+Release/
+
+# Windows files
+*.exe
+*.pdb
+Thumbs.db
+Desktop.ini
+
+# IDE files
+*.cbproj.local
+*.groupproj.local
+.vscode/
+.idea/
+*.swp
+*.swo
+.clinerules/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
