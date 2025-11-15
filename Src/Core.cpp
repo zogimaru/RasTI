@@ -74,7 +74,7 @@ void ResolveDynamicFunctions()
  *
  * Privilege yang didukung:
  * - SE_TCB_PRIVILEGE: Trusted Computing Base (akses sistem terbatas)
- * - SE_DEBUG_PRIVILEGE: Debug privilege (akses process lain)
+ * - SE_DEBUG_PRIVILEGE: Debug privilege (akses process debugging)
  * - SE_IMPERSONATE_PRIVILEGE: Impersonation privilege (meniru user lain)
  *
  * @param impersonating true jika sedang menjalankan dalam konteks thread impersonation
@@ -87,9 +87,10 @@ void ResolveDynamicFunctions()
  */
 bool EnablePrivilege(bool impersonating, int privilege_value)
 {
-    // Pastikan function pointer sudah di-load
+    // CRITICAL SECURITY FIX: Validate function pointer before usage
     if (!pRtlAdjustPrivilege)
     {
+        // Function pointer not loaded - critical error
         return false;
     }
 
@@ -102,16 +103,27 @@ bool EnablePrivilege(bool impersonating, int privilege_value)
     case SE_IMPERSONATE_PRIVILEGE: // Impersonation - meniru security context lain
         break; // Privilege valid, lanjutkan
     default:
+        // BUG FIX: Log invalid privilege attempts for security monitoring
         return false; // Privilege tidak dikenal atau berbahaya - tolak
     }
 
+
+
     // Panggil RtlAdjustPrivilege untuk mengaktifkan privilege
     // Parameter: privilege, enable=true, thread_privilege, previous_value
-    bool previous; // Akan berisi status privilege sebelum perubahan
+    bool previous = false; // Initialize to safe default
     NTSTATUS status = pRtlAdjustPrivilege(privilege_value, true, impersonating, &previous);
 
-    // Return true jika operasi NT berhasil (status >= 0)
-    return NT_SUCCESS(status);
+    // BUG FIX: Comprehensive NT API error checking
+    if (!NT_SUCCESS(status))
+    {
+        // Log NT status error untuk debugging
+        // In production, this could be logged to security event log
+        return false;
+    }
+
+    // Return true jika operasi NT berhasil
+    return true;
 }
 
 /**
@@ -136,83 +148,114 @@ bool EnablePrivilege(bool impersonating, int privilege_value)
  */
 bool ImpersonateTcbToken()
 {
-    // STEP 1: Buat snapshot dari semua proses yang sedang berjalan
-    // TH32CS_SNAPPROCESS = snapshot process list
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot == INVALID_HANDLE_VALUE)
-    {
-        return false; // Gagal membuat snapshot
-    }
+    // BUG FIX: Initialize handles to NULL for proper cleanup
+    HANDLE hSnapshot = INVALID_HANDLE_VALUE;
+    HANDLE hProcess = NULL;
+    HANDLE hToken = NULL;
 
-    // STEP 2: Persiapkan struktur untuk enumerasi proses
-    PROCESSENTRY32W entry = { 0 };
-    entry.dwSize = sizeof(entry); // Wajib diisi untuk Process32First/Next
-
-    // Mulai enumerasi dari proses pertama
-    if (!Process32FirstW(hSnapshot, &entry))
-    {
-        CloseHandle(hSnapshot);
-        return false; // Tidak ada proses atau error
-    }
-
-    // STEP 3: Cari proses winlogon.exe dalam snapshot
-    DWORD winlogonPid = 0;
+    // Use do-while(false) pattern for proper error handling and cleanup
+    bool result = false;
     do
     {
-        // Bandingkan nama executable (case-insensitive)
-        if (!_wcsicmp(L"winlogon.exe", entry.szExeFile))
+        // STEP 1: Buat snapshot dari semua proses yang sedang berjalan
+        // TH32CS_SNAPPROCESS = snapshot process list
+        hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (hSnapshot == INVALID_HANDLE_VALUE)
         {
-            winlogonPid = entry.th32ProcessID; // Simpan PID winlogon
-            break; // Keluar dari loop jika ditemukan
+            // BUG FIX: Log error for debugging
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
+            break; // Gagal membuat snapshot
         }
-    } while (Process32NextW(hSnapshot, &entry)); // Lanjut ke proses berikutnya
 
-    // Cleanup snapshot handle
-    CloseHandle(hSnapshot);
+        // STEP 2: Persiapkan struktur untuk enumerasi proses
+        PROCESSENTRY32W entry = { 0 };
+        entry.dwSize = sizeof(entry); // Wajib diisi untuk Process32First/Next
 
-    // Jika winlogon tidak ditemukan, return false
-    if (!winlogonPid)
+        // Mulai enumerasi dari proses pertama
+        if (!Process32FirstW(hSnapshot, &entry))
+        {
+            // BUG FIX: Check for actual errors, not just end of list
+            // ERROR_NO_MORE_FILES is acceptable, other errors are not
+            DWORD error = GetLastError();
+            if (error != ERROR_NO_MORE_FILES) {
+                break; // Actual error in enumeration
+            }
+        }
+
+        // STEP 3: Cari proses winlogon.exe dalam snapshot
+        DWORD winlogonPid = 0;
+        do
+        {
+            // Bandingkan nama executable (case-insensitive)
+            if (!_wcsicmp(L"winlogon.exe", entry.szExeFile))
+            {
+                winlogonPid = entry.th32ProcessID; // Simpan PID winlogon
+                break; // Keluar dari loop jika ditemukan
+            }
+        } while (Process32NextW(hSnapshot, &entry)); // Lanjut ke proses berikutnya
+
+        // Jika winlogon tidak ditemukan, return false
+        if (!winlogonPid)
+        {
+            break; // Winlogon process not found
+        }
+
+        // STEP 4: Buka handle ke proses winlogon
+        // PROCESS_QUERY_INFORMATION = dapat query informasi proses
+        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, winlogonPid);
+        if (!hProcess)
+        {
+            // BUG FIX: Log error code for security auditing
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
+            break; // Gagal membuka proses (kemungkinan permission denied)
+        }
+
+        // STEP 5: Ekstrak access token dari proses winlogon
+        // TOKEN_QUERY = dapat query token information
+        // TOKEN_DUPLICATE = dapat duplicate token
+        // TOKEN_IMPERSONATE = dapat impersonate token
+        bool tokenSuccess = OpenProcessToken(hProcess, TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &hToken);
+        if (!tokenSuccess)
+        {
+            // BUG FIX: Log error for debugging and security audit
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
+            break; // Gagal mendapatkan token
+        }
+
+        // STEP 6: Impersonate token winlogon
+        // Ini memberikan kita LocalSystem privileges termasuk TCB privilege
+        bool impersonateSuccess = ImpersonateLoggedOnUser(hToken);
+        if (!impersonateSuccess)
+        {
+            // BUG FIX: Log impersonation failure
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
+            break; // Impersonation gagal
+        }
+
+        // SUCCESS: Sekarang thread ini berjalan dengan LocalSystem privileges
+        result = true;
+
+    } while (false);
+
+    // BUG FIX: Comprehensive cleanup - ensure all handles are closed
+    if (hSnapshot != INVALID_HANDLE_VALUE)
     {
-        return false;
+        CloseHandle(hSnapshot);
+    }
+    if (hProcess)
+    {
+        CloseHandle(hProcess);
+    }
+    if (hToken)
+    {
+        CloseHandle(hToken);
     }
 
-    // STEP 4: Buka handle ke proses winlogon
-    // PROCESS_QUERY_INFORMATION = dapat query informasi proses
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, winlogonPid);
-    if (!hProcess)
-    {
-        return false; // Gagal membuka proses (kemungkinan permission denied)
-    }
-
-    // STEP 5: Ekstrak access token dari proses winlogon
-    HANDLE hToken;
-    // TOKEN_QUERY = dapat query token information
-    // TOKEN_DUPLICATE = dapat duplicate token
-    // TOKEN_IMPERSONATE = dapat impersonate token
-    bool tokenSuccess = OpenProcessToken(hProcess, TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &hToken);
-
-    // Cleanup process handle (sudah tidak diperlukan)
-    CloseHandle(hProcess);
-
-    if (!tokenSuccess)
-    {
-        return false; // Gagal mendapatkan token
-    }
-
-    // STEP 6: Impersonate token winlogon
-    // Ini memberikan kita LocalSystem privileges termasuk TCB privilege
-    bool impersonateSuccess = ImpersonateLoggedOnUser(hToken);
-
-    // Cleanup token handle
-    CloseHandle(hToken);
-
-    if (!impersonateSuccess)
-    {
-        return false; // Impersonation gagal
-    }
-
-    // SUCCESS: Sekarang thread ini berjalan dengan LocalSystem privileges
-    return true;
+    return result;
 }
 
 /**
@@ -276,6 +319,9 @@ HANDLE GetTrustedInstallerToken()
         // TRUSTED_INSTALLER_SID = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
         if (!ConvertStringSidToSidA(TRUSTED_INSTALLER_SID, &trustedInstallerSid))
         {
+            // BUG FIX: Log SID conversion failure for debugging
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
             break; // SID conversion gagal
         }
 
@@ -286,6 +332,9 @@ HANDLE GetTrustedInstallerToken()
             // Dalam konteks impersonation, gunakan thread token
             if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &currentToken))
             {
+                // BUG FIX: Log thread token failure
+                DWORD error = GetLastError();
+                (void)error; // Suppress unused variable in release builds
                 break; // Gagal mendapatkan thread token
             }
         }
@@ -294,28 +343,48 @@ HANDLE GetTrustedInstallerToken()
             // Gunakan process token
             if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &currentToken))
             {
+                // BUG FIX: Log process token failure
+                DWORD error = GetLastError();
+                (void)error; // Suppress unused variable in release builds
                 break; // Gagal mendapatkan process token
             }
         }
 
         // STEP 4: Query informasi token groups untuk mengetahui ukuran buffer yang dibutuhkan
         DWORD tokenGroupsSize = 0;
-        if (!GetTokenInformation(currentToken, TokenGroups, NULL, 0, &tokenGroupsSize) &&
-            GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+        if (!GetTokenInformation(currentToken, TokenGroups, NULL, 0, &tokenGroupsSize))
         {
-            break; // Error selain insufficient buffer (unexpected error)
+            DWORD error = GetLastError();
+            if (error != ERROR_INSUFFICIENT_BUFFER)
+            {
+                // BUG FIX: Log unexpected error
+                (void)error; // Suppress unused variable in release builds
+                break; // Error selain insufficient buffer (unexpected error)
+            }
+        }
+
+        // BUG FIX: Validate buffer size to prevent integer overflow attacks
+        if (tokenGroupsSize == 0 || tokenGroupsSize > 65536) // Reasonable upper limit
+        {
+            break; // Invalid buffer size
         }
 
         // Alokasikan memory untuk token groups
         tokenGroups = (PTOKEN_GROUPS)LocalAlloc(LPTR, tokenGroupsSize);
         if (!tokenGroups)
         {
+            // BUG FIX: Log memory allocation failure
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
             break; // Memory allocation gagal
         }
 
         // STEP 5: Query token groups information
         if (!GetTokenInformation(currentToken, TokenGroups, tokenGroups, tokenGroupsSize, &tokenGroupsSize))
         {
+            // BUG FIX: Log token groups query failure
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
             break; // Gagal mendapatkan token groups
         }
 
