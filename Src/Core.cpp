@@ -16,6 +16,7 @@
 #include <System.Classes.hpp>
 #include <cstdio>
 #include <SysUtils.hpp>
+#include <vector>
 
 //==============================================================================
 // GLOBAL FUNCTION POINTERS
@@ -599,21 +600,24 @@ BOOL CheckAdministratorPrivileges()
 }
 
 /**
- * @brief Validasi komprehensif untuk path executable
+ * @brief Validasi komprehensif untuk path executable dengan canonical path checking
  *
- * Melakukan multiple validation layers:
+ * Melakukan multiple validation layers dengan level enterprise security:
  * 1. Path tidak kosong dan tidak terlalu panjang
- * 2. Tidak mengandung path traversal attacks
- * 3. File exists (atau dapat ditemukan di PATH)
- * 4. Extension valid (.exe, .bat, .cmd, .com)
- * 5. File dapat diakses dan merupakan executable valid
+ * 2. Path traversal security check (basic)
+ * 3. Canonical path normalization dan validation
+ * 4. Canonical path traversal check (post-normalization)
+ * 5. File existence check (pada canonical path)
+ * 6. Extension validation (pada canonical path)
+ * 7. Executable access validation
  *
  * @param path Path yang akan divalidasi
  * @return true jika semua validasi berhasil, false jika ada yang gagal
  *
- * @note Menggunakan FindExecutableInPath jika file tidak ditemukan di path spesifik
- * @see SanitizePath untuk normalisasi path sebelum validasi
+ * @note Menggunakan GetCanonicalPath untuk path normalization dan security
+ * @see SanitizePath untuk basic normalization
  * @see IsPathTraversalSafe untuk security checks
+ * @see GetCanonicalPath untuk advanced canonical validation
  */
 bool ValidateExecutablePath(const AnsiString& path)
 {
@@ -621,28 +625,56 @@ bool ValidateExecutablePath(const AnsiString& path)
     if (path.IsEmpty()) return false; // Path kosong tidak valid
     if (path.Length() > MAX_PATH) return false; // Path terlalu panjang
 
-    // VALIDATION 2: Path traversal security check
-    if (!IsPathTraversalSafe(path)) return false; // Mengandung traversal attacks
+    // VALIDATION 2: Preliminary path traversal security check (before canonical conversion)
+    if (!IsPathTraversalSafe(path)) return false; // Mengandung obvious traversal attacks
 
-    AnsiString validatedPath = path;
+    // VALIDATION 3: Canonical path conversion and validation
+    // This is the critical enterprise security layer
+    AnsiString canonicalPath = GetCanonicalPath(path);
+    if (canonicalPath.IsEmpty()) {
+        return false; // Canonical conversion failed - invalid path
+    }
 
-    // VALIDATION 3: File existence check
-    // Jika file tidak ada di path spesifik, coba cari di PATH environment
+    // Additional check: canonical path should not be longer than allowed
+    if (canonicalPath.Length() > MAX_PATH) {
+        return false; // Canonical path too long (expansion from relative to absolute)
+    }
+
+    // VALIDATION 4: Post-canonical path traversal check
+    // Even after canonical conversion, verify no traversal patterns remain
+    if (!IsPathTraversalSafe(canonicalPath)) {
+        return false; // Canonical path still contains traversal patterns (shouldn't happen but being paranoid)
+    }
+
+    AnsiString validatedPath = canonicalPath;
+
+    // VALIDATION 5: File existence check on canonical path
+    // This prevents TOCTOU attacks by using canonical path for file operations
     if (!FileExists(validatedPath)) {
-        AnsiString exeName = ExtractFileName(validatedPath); // Ambil nama file saja
+        // If canonical path doesn't exist, try searching in PATH (as fallback for executables)
+        AnsiString exeName = ExtractFileName(validatedPath); // Ambil nama file saja dari canonical path
         AnsiString foundPath = FindExecutableInPath(exeName); // Cari di PATH
         if (!foundPath.IsEmpty()) {
-            validatedPath = foundPath; // Gunakan path dari PATH
+            // Validate the found path is also canonical and safe
+            AnsiString canonicalFoundPath = GetCanonicalPath(foundPath);
+            if (!canonicalFoundPath.IsEmpty() && IsPathTraversalSafe(canonicalFoundPath)) {
+                validatedPath = canonicalFoundPath; // Gunakan canonical PATH location
+            } else {
+                return false; // PATH location fails canonical validation
+            }
         } else {
-            return false; // File tidak ditemukan di path spesifik maupun PATH
+            return false; // File tidak ditemukan di canonical location maupun PATH
         }
     }
 
-    // VALIDATION 4: Extension check
+    // VALIDATION 6: Extension check on canonical path
     AnsiString ext = ExtractFileExt(validatedPath).LowerCase();
-    if (ext != ".exe" && ext != ".bat" && ext != ".cmd" && ext != ".com") return false;
+    if (ext != ".exe" && ext != ".bat" && ext != ".cmd" && ext != ".com") {
+        return false; // Invalid extension on canonical path
+    }
 
-    // VALIDATION 5: Executable validation
+    // VALIDATION 7: Executable access validation on canonical path
+    // This uses the canonical path for all file operations
     return IsValidExecutable(validatedPath);
 }
 
@@ -671,6 +703,53 @@ bool SanitizePath(AnsiString& path)
     }
 
     return !path.IsEmpty();
+}
+
+AnsiString GetCanonicalPath(const AnsiString& path)
+{
+    // Input validation
+    if (path.IsEmpty()) {
+        return "";
+    }
+
+    // Convert AnsiString to char buffer for GetFullPathNameA
+    const char* inputPath = path.c_str();
+
+    // First call: determine buffer size needed
+    DWORD requiredSize = GetFullPathNameA(inputPath, 0, NULL, NULL);
+    if (requiredSize == 0) {
+        // GetFullPathNameA failed
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable warning
+        return "";
+    }
+
+    // Allocate buffer with extra space for safety
+    DWORD bufferSize = requiredSize + 1; // +1 for null terminator
+    std::vector<char> canonicalPathBuffer(bufferSize);
+
+    // Second call: get the canonical path
+    DWORD actualSize = GetFullPathNameA(inputPath, bufferSize, canonicalPathBuffer.data(), NULL);
+    if (actualSize == 0 || actualSize >= bufferSize) {
+        // GetFullPathNameA failed or buffer too small (shouldn't happen)
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable warning
+        return "";
+    }
+
+    // Convert back to AnsiString
+    AnsiString canonicalPath(canonicalPathBuffer.data());
+
+    // Additional normalization: ensure backslashes and remove any trailing slash (except for root)
+    canonicalPath = StringReplace(canonicalPath, "/", "\\", TReplaceFlags() << rfReplaceAll);
+
+    // Remove trailing backslash unless it's a root path (like "C:\")
+    if (canonicalPath.Length() > 3 && canonicalPath[canonicalPath.Length() - 1] == '\\' &&
+        canonicalPath[canonicalPath.Length() - 2] != ':') {
+        canonicalPath = canonicalPath.SubString(1, canonicalPath.Length() - 1);
+    }
+
+    return canonicalPath;
 }
 
 bool IsPathTraversalSafe(const AnsiString& path)

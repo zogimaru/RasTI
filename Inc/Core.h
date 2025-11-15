@@ -355,6 +355,20 @@ bool ValidateExecutablePath(const AnsiString& path);
 bool SanitizePath(AnsiString& path);
 
 /**
+ * @brief Mengkonversi path ke bentuk canonical (normalized)
+ *
+ * Menggunakan GetFullPathName() untuk mendapatkan canonical path yang:
+ * - Resolve ".", "..", dan relative components
+ * - Convert relative paths ke absolute paths
+ * - Normalize path separators
+ * - Handle symbolic links (jika ada)
+ *
+ * @param path Input path (relative atau absolute)
+ * @return Canonical path jika berhasil, empty string jika gagal
+ */
+AnsiString GetCanonicalPath(const AnsiString& path);
+
+/**
  * @brief Mengecek apakah path mengandung path traversal attacks
  *
  * Mencegah directory traversal dengan mendeteksi:

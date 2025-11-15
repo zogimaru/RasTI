@@ -260,6 +260,84 @@ bool TestRAIISmartHandles() {
     TEST_PASS("RAII Smart Handle Pattern implementation works correctly");
 }
 
+/**
+ * @brief Test Canonical Path Validation (NEW REQUIREMENT)
+ *
+ * Test ini memvalidasi implementasi canonical path checking untuk path security.
+ * Menguji berbagai skenario path traversal attacks dan normalization.
+ */
+bool TestCanonicalPathValidation() {
+    std::cout << "Testing Canonical Path Validation..." << std::endl;
+
+    // TEST 1: Basic canonical path conversion
+    {
+        AnsiString inputPath = "C:\\Windows\\System32\\notepad.exe";
+        AnsiString canonicalPath = GetCanonicalPath(inputPath);
+        TEST_ASSERT(!canonicalPath.IsEmpty(), "Canonical path conversion should succeed for valid path");
+        TEST_ASSERT(canonicalPath == inputPath, "Canonical path should be identical for already-canonical input");
+    }
+
+    // TEST 2: Relative path canonicalization
+    {
+        AnsiString relativePath = ".\\test.exe";
+        AnsiString canonicalPath = GetCanonicalPath(relativePath);
+        TEST_ASSERT(!canonicalPath.IsEmpty(), "Relative path should be canonicalized");
+        TEST_ASSERT(canonicalPath.Pos(":") == 2, "Canonical path should contain drive letter");
+        TEST_ASSERT(canonicalPath.Length() > relativePath.Length(), "Canonical path should be longer (absolute)");
+    }
+
+    // TEST 3: Path traversal detection (basic)
+    {
+        TEST_ASSERT(!IsPathTraversalSafe("..\\notepad.exe"), "Path traversal ..\\ should be detected");
+        TEST_ASSERT(!IsPathTraversalSafe("C:\\Windows\\..\\System32\\notepad.exe"), "Path traversal in middle should be detected");
+        TEST_ASSERT(!IsPathTraversalSafe("test<>.exe"), "Suspicious characters should be rejected");
+    }
+
+    // TEST 4: Safe paths
+    {
+        TEST_ASSERT(IsPathTraversalSafe("C:\\Windows\\notepad.exe"), "Valid absolute path should be safe");
+        TEST_ASSERT(IsPathTraversalSafe("notepad.exe"), "Simple filename should be safe");
+        TEST_ASSERT(IsPathTraversalSafe("C:\\Program Files\\test.exe"), "Path with spaces should be safe");
+    }
+
+    // TEST 5: Empty path handling
+    {
+        AnsiString emptyPath = "";
+        AnsiString canonicalResult = GetCanonicalPath(emptyPath);
+        TEST_ASSERT(canonicalResult.IsEmpty(), "Empty path should return empty canonical path");
+    }
+
+    // TEST 6: Very long path handling
+    {
+        AnsiString longPath = AnsiString::StringOfChar('A', MAX_PATH + 10);
+        AnsiString canonicalResult = GetCanonicalPath(longPath);
+        // This might fail on Windows due to path length limits, but we test the behavior
+        // The important thing is it doesn't crash
+        TEST_PASS("Long path handling doesn't crash the path validation system");
+    }
+
+    // TEST 7: Comprehensive path validation
+    {
+        // Test that ValidateExecutablePath integrates canonical checking
+        // We can't test actual file existence easily in unit tests,
+        // but we can test the validation logic
+
+        // Empty path should fail
+        TEST_ASSERT(!ValidateExecutablePath(""), "Empty path should fail validation");
+
+        // Path with traversal should fail
+        TEST_ASSERT(!ValidateExecutablePath("..\\cmd.exe"), "Path with traversal should fail validation");
+
+        // Path that's too long should fail
+        AnsiString tooLongPath = AnsiString::StringOfChar('A', MAX_PATH + 1);
+        TEST_ASSERT(!ValidateExecutablePath(tooLongPath), "Too long path should fail validation");
+
+        TEST_PASS("Comprehensive executable path validation works correctly");
+    }
+
+    TEST_PASS("Canonical Path Validation works correctly");
+}
+
 bool TestSecurityValidations() {
     std::cout << "Testing security validation functions..." << std::endl;
 
@@ -451,7 +529,8 @@ int _tmain(int argc, _TCHAR* argv[]) {
         {"SECURITY TESTS", "🛡️ ", {
             {"CheckAdministratorPrivileges", "TI privileges detected", TestCheckAdministratorPrivileges, false, 0.0},
             {"GetTrustedInstallerToken", "Handles NULL gracefully", TestGetTrustedInstallerToken, false, 0.0},
-            {"SecurityValidations", "Path traversal prevented", TestSecurityValidations, false, 0.0}
+            {"SecurityValidations", "Path traversal prevented", TestSecurityValidations, false, 0.0},
+            {"CanonicalPathValidation", "Canonical path checking works", TestCanonicalPathValidation, false, 0.0}
         }},
         {"UTILITY TESTS", "🔧", {
             {"StringConversion", "Safe encoding/decoding", TestStringConversion, false, 0.0},
