@@ -1,3 +1,20 @@
+/**
+ * @file Test.cpp
+ * @brief Unit Test Suite untuk RasTI Core Functions
+ *
+ * File ini berisi comprehensive unit tests untuk menguji semua fungsi
+ * privilege escalation dan security validation dalam RasTI.
+ *
+ * Test Categories:
+ * - PRIVILEGE TESTS: Testing privilege management functions
+ * - SECURITY TESTS: Testing path validation dan security functions
+ * - UTILITY TESTS: Testing helper functions dan string operations
+ *
+ * @author RasTI Development Team
+ * @version 1.1.0.0
+ * @date 2025
+ */
+
 #include "Core.h"
 #include <iostream>
 #include <string>
@@ -9,12 +26,18 @@
 #include <vector>
 #include <sstream>
 
+//==============================================================================
+// TEST MACROS
+//==============================================================================
+
+/** @brief Macro untuk assertion dalam test functions */
 #define TEST_ASSERT(condition, message) \
     if (!(condition)) { \
         std::cout << "TEST FAILED: " << message << std::endl; \
         return false; \
     }
 
+/** @brief Macro untuk menandai test berhasil */
 #define TEST_PASS(message) \
     std::cout << "TEST PASSED: " << message << std::endl; \
     return true;
@@ -161,38 +184,54 @@ bool TestErrorMessages() {
     TEST_PASS("Error message functions format correctly");
 }
 
-// Function pointer type for test functions
+//==============================================================================
+// TEST DATA STRUCTURES
+//==============================================================================
+
+/** @brief Function pointer type untuk test functions */
 typedef bool (*TestFunction)();
 
-// Structure for test results
+/**
+ * @brief Structure untuk menyimpan hasil test individual
+ */
 struct TestResult {
-    std::string name;
-    std::string description;
-    TestFunction func;
-    bool passed;
-    double duration; // in milliseconds
+    std::string name;        /**< Nama test function */
+    std::string description; /**< Deskripsi test case */
+    TestFunction func;       /**< Pointer ke test function */
+    bool passed;             /**< Status pass/fail */
+    double duration;         /**< Durasi eksekusi dalam milliseconds */
 };
 
-// Structure for test categories
+/**
+ * @brief Structure untuk mengelompokkan test berdasarkan kategori
+ */
 struct TestCategory {
-    std::string name;
-    std::string icon;
-    std::vector<TestResult> tests;
+    std::string name;              /**< Nama kategori (e.g., "PRIVILEGE TESTS") */
+    std::string icon;              /**< Emoji icon untuk display */
+    std::vector<TestResult> tests; /**< Array test functions dalam kategori ini */
 };
 
-// Helper functions for output formatting
+//==============================================================================
+// OUTPUT FORMATTING FUNCTIONS
+//==============================================================================
+
+/**
+ * @brief Mencetak header test suite dengan informasi versi dan tanggal
+ */
 void PrintHeader() {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time);
 
-    std::cout << "╔══════════════════════════════════════════════════════════════╗" << std::endl;
-    std::cout << "║              RasTI Core Functions Unit Tests               ║" << std::endl;
-    std::cout << "║                     v1.0.0 - " << std::put_time(&tm, "%Y-%m-%d") << "                     ║" << std::endl;
-    std::cout << "╚══════════════════════════════════════════════════════════════╝" << std::endl;
+    std::cout << "RasTI Core Functions Unit Tests" << std::endl;
+    std::cout << "Version 1.0.0 - " << std::put_time(&tm, "%Y-%m-%d") << std::endl;
+    std::cout << std::string(50, '=') << std::endl;
     std::cout << std::endl;
 }
 
+/**
+ * @brief Mencetak informasi environment (admin privileges, waktu mulai)
+ */
 void PrintEnvironmentInfo() {
     BOOL isAdmin = CheckAdministratorPrivileges();
     std::cout << "🔧 Environment: Windows 11 | Admin: " << (isAdmin ? "Yes" : "No") << " | TI: " << (isAdmin ? "Yes" : "No") << std::endl;
@@ -204,6 +243,11 @@ void PrintEnvironmentInfo() {
     std::cout << std::endl;
 }
 
+/**
+ * @brief Mencetak header kategori test dengan progress counter
+ *
+ * @param category Kategori test yang akan ditampilkan
+ */
 void PrintCategoryHeader(const TestCategory& category) {
     int passed = 0;
     for (const auto& test : category.tests) {
@@ -213,16 +257,29 @@ void PrintCategoryHeader(const TestCategory& category) {
     std::cout << category.icon << " " << category.name << " (" << passed << "/" << category.tests.size() << " passed)" << std::endl;
 }
 
+/**
+ * @brief Mencetak hasil individual test dengan tree-style formatting
+ *
+ * @param test Hasil test yang akan ditampilkan
+ * @param isLast true jika ini test terakhir dalam kategori
+ */
 void PrintTestResult(const TestResult& test, bool isLast) {
-    std::string prefix = isLast ? "└── " : "├── ";
-    std::string status = test.passed ? "✅ " : "❌ ";
+    std::string prefix = isLast ? "└── " : "├── ";  // Tree-style prefix
+    std::string status = test.passed ? "✅ " : "❌ "; // Status emoji
     std::cout << prefix << status << test.name << ": " << test.description << std::endl;
 }
 
+/**
+ * @brief Mencetak ringkasan akhir test suite
+ *
+ * @param categories Semua kategori test yang telah dijalankan
+ * @param totalTime Total waktu eksekusi dalam detik
+ */
 void PrintSummary(const std::vector<TestCategory>& categories, double totalTime) {
     int totalTests = 0;
     int totalPassed = 0;
 
+    // Hitung total test dan passed test
     for (const auto& category : categories) {
         totalTests += category.tests.size();
         for (const auto& test : category.tests) {
@@ -237,18 +294,39 @@ void PrintSummary(const std::vector<TestCategory>& categories, double totalTime)
     std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
 }
 
+/**
+ * @brief Main entry point untuk test suite
+ *
+ * Function ini menjalankan semua unit tests secara terorganisir,
+ * mengukur performa, dan memberikan laporan hasil yang comprehensive.
+ *
+ * @param argc Jumlah argument command line
+ * @param argv Array argument command line
+ * @return 0 jika semua test pass, 1 jika ada yang fail
+ */
 int _tmain(int argc, _TCHAR* argv[]) {
+    //======================================================================
+    // INITIALIZATION PHASE
+    //======================================================================
+
+    // Catat waktu mulai untuk pengukuran performa total
     auto startTime = std::chrono::high_resolution_clock::now();
 
+    // Tampilkan header dan informasi environment
     PrintHeader();
     PrintEnvironmentInfo();
+
+    //======================================================================
+    // TEST DEFINITION PHASE
+    //======================================================================
 
     std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
     std::cout << "📋 Test Categories:" << std::endl;
     std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
     std::cout << std::endl;
 
-    // Define test categories with function pointers
+    // Definisi semua kategori test dengan function pointers
+    // Setiap kategori berisi array of test functions yang akan dijalankan
     std::vector<TestCategory> categories = {
         {"PRIVILEGE TESTS", "🔐", {
             {"ResolveDynamicFunctions", "Function pointers loaded correctly", TestResolveDynamicFunctions, false, 0.0},
@@ -265,45 +343,69 @@ int _tmain(int argc, _TCHAR* argv[]) {
         }}
     };
 
-    // Run tests and collect results
+    //======================================================================
+    // TEST EXECUTION PHASE
+    //======================================================================
+
+    // Jalankan semua test dalam setiap kategori
     for (auto& category : categories) {
+        // Tampilkan header kategori dengan progress counter
         PrintCategoryHeader(category);
 
+        // Jalankan setiap test dalam kategori
         for (size_t i = 0; i < category.tests.size(); i++) {
             auto& test = category.tests[i];
+
+            // Catat waktu mulai untuk pengukuran durasi test
             auto testStart = std::chrono::high_resolution_clock::now();
 
-            // Redirect cout to capture test output
+            // REDIRECT COUT: Tangkap output test function agar tidak tercampur dengan UI
+            // Simpan streambuf lama untuk restore nanti
             std::stringstream buffer;
             std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
+            // Jalankan test function
             bool result = false;
             if (test.func) {
                 result = test.func();
             }
 
-            // Restore cout
+            // RESTORE COUT: Kembalikan output stream ke normal
             std::cout.rdbuf(old);
 
+            // Hitung durasi eksekusi test
             auto testEnd = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(testEnd - testStart);
 
+            // Simpan hasil test
             test.passed = result;
             test.duration = duration.count();
 
+            // Tampilkan hasil test dengan formatting tree-style
             PrintTestResult(test, i == category.tests.size() - 1);
         }
-        std::cout << std::endl;
+        std::cout << std::endl; // Baris kosong antar kategori
     }
 
+    //======================================================================
+    // REPORTING PHASE
+    //======================================================================
+
+    // Hitung waktu total eksekusi
     auto endTime = std::chrono::high_resolution_clock::now();
     auto totalDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
+    // Tampilkan ringkasan akhir
     PrintSummary(categories, totalDuration.count() / 1000.0);
 
-    std::cout << std::endl << "Press Enter to exit...";
-    std::cin.get();
+    //======================================================================
+    // CLEANUP AND EXIT
+    //======================================================================
 
+    std::cout << std::endl << "Press Enter to exit...";
+    std::cin.get(); // Tunggu user input sebelum exit
+
+    // Hitung final statistics untuk return code
     int totalPassed = 0;
     int totalTests = 0;
     for (const auto& category : categories) {
@@ -313,5 +415,6 @@ int _tmain(int argc, _TCHAR* argv[]) {
         }
     }
 
+    // Return 0 jika semua test pass, 1 jika ada yang fail
     return (totalPassed == totalTests) ? 0 : 1;
 }

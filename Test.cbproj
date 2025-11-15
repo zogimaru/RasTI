@@ -1,38 +1,71 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Test.cbproj - Test Console Application Project File -->
+<!-- File project untuk aplikasi console Test (unit testing) -->
+<!-- Menggunakan Embarcadero C++ Builder tanpa VCL Framework -->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!-- ============================================ -->
+    <!-- BASIC PROJECT PROPERTIES                   -->
+    <!-- ============================================ -->
+
     <PropertyGroup>
+        <!-- Unique identifier untuk project test ini -->
         <ProjectGuid>{C45CB819-2DB3-4F4D-93B2-EC64B99BAFCC}</ProjectGuid>
+        <!-- Versi C++ Builder yang digunakan -->
         <ProjectVersion>19.3</ProjectVersion>
+        <!-- Framework: None (console app tanpa VCL) -->
         <FrameworkType>None</FrameworkType>
+        <!-- Tipe aplikasi: Console Application -->
         <AppType>Console</AppType>
+        <!-- Base configuration flag -->
         <Base>True</Base>
+        <!-- Default configuration jika tidak dispecify -->
         <Config Condition="'$(Config)'==''">Debug</Config>
+        <!-- Default platform jika tidak dispecify -->
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
+        <!-- Platform yang didukung (1=Win32, 2=Win64, 3=OSX32, dll) -->
         <TargetedPlatforms>3</TargetedPlatforms>
     </PropertyGroup>
+
+    <!-- ============================================ -->
+    <!-- CONFIGURATION DEFINITIONS                  -->
+    <!-- ============================================ -->
+
+    <!-- Base configuration - common settings untuk semua build -->
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 platform settings untuk Base config -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
         <Base_Win32>true</Base_Win32>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Debug configuration - development build dengan debug info -->
     <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
         <Cfg_1>true</Cfg_1>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 Debug configuration -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_1)'=='true') or '$(Cfg_1_Win32)'!=''">
         <Cfg_1_Win32>true</Cfg_1_Win32>
         <CfgParent>Cfg_1</CfgParent>
         <Cfg_1>true</Cfg_1>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Release configuration - optimized production build -->
     <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_2)'!=''">
         <Cfg_2>true</Cfg_2>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 Release configuration -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
         <Cfg_2_Win32>true</Cfg_2_Win32>
         <CfgParent>Cfg_2</CfgParent>
@@ -98,17 +131,26 @@
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <BCC_UseClassicCompiler>false</BCC_UseClassicCompiler>
     </PropertyGroup>
+
+    <!-- ============================================ -->
+    <!-- SOURCE FILES AND BUILD ITEMS               -->
+    <!-- ============================================ -->
+
     <ItemGroup>
+        <!-- Core privilege escalation functions (shared dengan main app) -->
         <CppCompile Include="Src\Core.cpp">
             <BuildOrder>1</BuildOrder>
         </CppCompile>
+        <!-- Precompiled header untuk mempercepat compile -->
         <PCHCompile Include="Src\MainPCH.h">
             <BuildOrder>2</BuildOrder>
             <PCH>true</PCH>
         </PCHCompile>
+        <!-- Main test application source file -->
         <CppCompile Include="Test\Test.cpp">
             <BuildOrder>0</BuildOrder>
         </CppCompile>
+        <!-- Build configuration definitions -->
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -1,70 +1,130 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- RasTI.cbproj - Main Application Project File -->
+<!-- File project untuk aplikasi GUI RasTI (VCL Application) -->
+<!-- Menggunakan Embarcadero C++ Builder dengan VCL Framework -->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!-- ============================================ -->
+    <!-- BASIC PROJECT PROPERTIES                   -->
+    <!-- ============================================ -->
+
     <PropertyGroup>
+        <!-- Unique identifier untuk project ini -->
         <ProjectGuid>{C45CB819-2DB3-4F4D-93B1-EC64B99BAFCC}</ProjectGuid>
+        <!-- Versi C++ Builder yang digunakan -->
         <ProjectVersion>19.3</ProjectVersion>
+        <!-- Framework: VCL (Visual Component Library) untuk GUI -->
         <FrameworkType>VCL</FrameworkType>
+        <!-- Tipe aplikasi: GUI Application -->
         <AppType>Application</AppType>
+        <!-- File entry point utama -->
         <MainSource>Src\Main.cpp</MainSource>
+        <!-- Base configuration flag -->
         <Base>True</Base>
+        <!-- Default configuration jika tidak dispecify -->
         <Config Condition="'$(Config)'==''">Debug</Config>
+        <!-- Default platform jika tidak dispecify -->
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
+        <!-- Platform yang didukung (1=Win32, 2=Win64, 3=OSX32, dll) -->
         <TargetedPlatforms>3</TargetedPlatforms>
     </PropertyGroup>
+
+    <!-- ============================================ -->
+    <!-- CONFIGURATION DEFINITIONS                  -->
+    <!-- ============================================ -->
+
+    <!-- Base configuration - common settings untuk semua build -->
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 platform settings untuk Base config -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
         <Base_Win32>true</Base_Win32>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win64 platform settings untuk Base config -->
     <PropertyGroup Condition="('$(Platform)'=='Win64' and '$(Base)'=='true') or '$(Base_Win64)'!=''">
         <Base_Win64>true</Base_Win64>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Debug configuration - development build dengan debug info -->
     <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
         <Cfg_1>true</Cfg_1>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 Debug configuration -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_1)'=='true') or '$(Cfg_1_Win32)'!=''">
         <Cfg_1_Win32>true</Cfg_1_Win32>
         <CfgParent>Cfg_1</CfgParent>
         <Cfg_1>true</Cfg_1>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Release configuration - optimized production build -->
     <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_2)'!=''">
         <Cfg_2>true</Cfg_2>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- Win32 Release configuration -->
     <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
         <Cfg_2_Win32>true</Cfg_2_Win32>
         <CfgParent>Cfg_2</CfgParent>
         <Cfg_2>true</Cfg_2>
         <Base>true</Base>
     </PropertyGroup>
+
+    <!-- ============================================ -->
+    <!-- BASE CONFIGURATION - Common settings        -->
+    <!-- ============================================ -->
+
     <PropertyGroup Condition="'$(Base)'!=''">
+        <!-- Compiler output encoding -->
         <DCC_CBuilderOutput>JPHNE</DCC_CBuilderOutput>
+        <!-- Use dynamic RTL (Runtime Library) -->
         <DynamicRTL>true</DynamicRTL>
+        <!-- Use packages instead of static linking -->
         <UsePackages>true</UsePackages>
+        <!-- Directory untuk intermediate files (.obj, dll) -->
         <IntermediateOutputDir>.\Tmp</IntermediateOutputDir>
+        <!-- Directory output final executable -->
         <FinalOutputDir>.\Bin\RasTI\$(Platform)\$(Config)</FinalOutputDir>
+        <!-- BCC compiler: warning as error = false -->
         <BCC_wpar>false</BCC_wpar>
+        <!-- BCC compiler: optimize for speed -->
         <BCC_OptimizeForSpeed>true</BCC_OptimizeForSpeed>
+        <!-- BCC compiler: extended error info -->
         <BCC_ExtendedErrorInfo>true</BCC_ExtendedErrorInfo>
+        <!-- Linker library path -->
         <ILINK_TranslatedLibraryPath>$(BDSLIB)\$(PLATFORM)\release\$(LANGDIR);$(ILINK_TranslatedLibraryPath)</ILINK_TranslatedLibraryPath>
+        <!-- Project type: VCL GUI Application -->
         <ProjectType>CppVCLApplication</ProjectType>
+        <!-- Delphi namespaces untuk VCL -->
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+        <!-- Core libraries: RTL dan VCL -->
         <AllPackageLibs>rtl.lib;vcl.lib</AllPackageLibs>
+        <!-- TCHAR mapping ke wchar_t -->
         <_TCHARMapping>wchar_t</_TCHARMapping>
+        <!-- Enable multithreading -->
         <Multithreaded>true</Multithreaded>
+        <!-- Default application icon -->
         <Icon_MainIcon>$(BDS)\bin\cbuilder_PROJECTICON.ico</Icon_MainIcon>
+        <!-- UWP logos (untuk future Windows Store apps) -->
         <UWP_CppLogo44>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_44.png</UWP_CppLogo44>
         <UWP_CppLogo150>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_150.png</UWP_CppLogo150>
+        <!-- Sanitized project name untuk deployment -->
         <SanitizedProjectName>RasTI</SanitizedProjectName>
+        <!-- Include paths: Src dan Inc directories -->
         <IncludePath>Src\;Inc\;$(IncludePath)</IncludePath>
+        <!-- Library paths untuk linker -->
         <ILINK_LibraryPath>Src\;$(ILINK_LibraryPath)</ILINK_LibraryPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
@@ -121,24 +181,35 @@
         <BCC_UseClassicCompiler>false</BCC_UseClassicCompiler>
         <LinkPackageImports>rtl.bpi;vcl.bpi</LinkPackageImports>
     </PropertyGroup>
+
+    <!-- ============================================ -->
+    <!-- SOURCE FILES AND BUILD ITEMS               -->
+    <!-- ============================================ -->
+
     <ItemGroup>
+        <!-- Main GUI Form - VCL Form dengan event handlers -->
         <CppCompile Include="Src\Form.cpp">
             <Form>Main</Form>
             <FormType>dfm</FormType>
             <DependentOn>Inc\Form.h</DependentOn>
             <BuildOrder>2</BuildOrder>
         </CppCompile>
+        <!-- Core privilege escalation functions -->
         <CppCompile Include="Src\Core.cpp">
             <BuildOrder>3</BuildOrder>
         </CppCompile>
+        <!-- Application entry point - WinMain dan CLI logic -->
         <CppCompile Include="Src\Main.cpp">
             <BuildOrder>0</BuildOrder>
         </CppCompile>
+        <!-- Precompiled header untuk mempercepat compile -->
         <PCHCompile Include="Src\MainPCH.h">
             <BuildOrder>1</BuildOrder>
             <PCH>true</PCH>
         </PCHCompile>
+        <!-- VCL Form resources (UI layout dan components) -->
         <FormResources Include="Src\Form.dfm"/>
+        <!-- Build configuration definitions -->
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

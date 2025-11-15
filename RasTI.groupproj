@@ -1,15 +1,26 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- RasTI Group Project File -->
+<!-- File ini mendefinisikan group project yang berisi RasTI.cbproj dan Test.cbproj -->
+<!-- Group project memungkinkan build dan management project secara bersamaan -->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!-- Project GUID - Unique identifier untuk group project ini -->
     <PropertyGroup>
         <ProjectGuid>{05EBFAEA-70CF-483D-BF7E-9BCEDEF117AC}</ProjectGuid>
     </PropertyGroup>
+    <!-- Daftar project yang termasuk dalam group ini -->
     <ItemGroup>
+        <!-- Test project - Console application untuk unit testing -->
         <Projects Include="Test.cbproj">
             <Dependencies/>
         </Projects>
+        <!-- Main RasTI project - VCL GUI application -->
         <Projects Include="RasTI.cbproj">
             <Dependencies/>
         </Projects>
     </ItemGroup>
+
+    <!-- Borland/Embarcadero specific extensions -->
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
         <Borland.ProjectType/>
@@ -17,32 +28,54 @@
             <Default.Personality/>
         </BorlandProject>
     </ProjectExtensions>
+
+    <!-- ============================================ -->
+    <!-- INDIVIDUAL PROJECT BUILD TARGETS           -->
+    <!-- ============================================ -->
+
+    <!-- Build Test project only -->
     <Target Name="Test">
         <MSBuild Projects="Test.cbproj"/>
     </Target>
+    <!-- Clean Test project -->
     <Target Name="Test:Clean">
         <MSBuild Projects="Test.cbproj" Targets="Clean"/>
     </Target>
+    <!-- Make Test project (compile without linking) -->
     <Target Name="Test:Make">
         <MSBuild Projects="Test.cbproj" Targets="Make"/>
     </Target>
+
+    <!-- Build RasTI main project only -->
     <Target Name="RasTI">
         <MSBuild Projects="RasTI.cbproj"/>
     </Target>
+    <!-- Clean RasTI main project -->
     <Target Name="RasTI:Clean">
         <MSBuild Projects="RasTI.cbproj" Targets="Clean"/>
     </Target>
+    <!-- Make RasTI main project (compile without linking) -->
     <Target Name="RasTI:Make">
         <MSBuild Projects="RasTI.cbproj" Targets="Make"/>
     </Target>
+
+    <!-- ============================================ -->
+    <!-- GROUP BUILD TARGETS                        -->
+    <!-- ============================================ -->
+
+    <!-- Build all projects in group -->
     <Target Name="Build">
         <CallTarget Targets="Test;RasTI"/>
     </Target>
+    <!-- Clean all projects in group -->
     <Target Name="Clean">
         <CallTarget Targets="Test:Clean;RasTI:Clean"/>
     </Target>
+    <!-- Make all projects in group (compile without linking) -->
     <Target Name="Make">
         <CallTarget Targets="Test:Make;RasTI:Make"/>
     </Target>
+
+    <!-- Import standard group targets dari Embarcadero -->
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
