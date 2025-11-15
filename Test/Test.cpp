@@ -261,6 +261,60 @@ bool TestRAIISmartHandles() {
 }
 
 /**
+ * @brief Test Function Pointer Null Checking (CRITICAL SECURITY FIX)
+ *
+ * Test ini memvalidasi bahwa semus function pointer dicek null sebelum digunakan.
+ * Ini mencegah null pointer dereference yang bisa menyebabkan crash/critical vulnerability.
+ */
+bool TestFunctionPointerNullChecking() {
+    std::cout << "Testing Function Pointer Null Checking..." << std::endl;
+
+    // Save original pointers for restoration
+    _RtlAdjustPrivilege originalRtlAdjustPrivilege = pRtlAdjustPrivilege;
+    _LogonUserExExW originalLogonUserExExW = pLogonUserExExW;
+
+    // TEST 1: RtlAdjustPrivilege null checking (already implemented)
+    {
+        // Simulate missing function pointer
+        pRtlAdjustPrivilege = NULL;
+
+        bool result = EnablePrivilege(false, SeDebugPrivilege);
+        TEST_ASSERT(result == false, "EnablePrivilege should fail when pRtlAdjustPrivilege is NULL");
+
+        // Restore original pointer
+        pRtlAdjustPrivilege = originalRtlAdjustPrivilege;
+    }
+
+    // TEST 2: LogonUserExExW null checking (NEW FIX)
+    {
+        // Simulate missing function pointer
+        pLogonUserExExW = NULL;
+
+        HANDLE result = GetTrustedInstallerToken();
+        TEST_ASSERT(result == NULL, "GetTrustedInstallerToken should fail when pLogonUserExExW is NULL");
+
+        // Restore original pointer
+        pLogonUserExExW = originalLogonUserExExW;
+    }
+
+    // TEST 3: Test that null checking doesn't break normal operation
+    {
+        // Ensure pointers are restored and valid
+        TEST_ASSERT(pRtlAdjustPrivilege != NULL, "pRtlAdjustPrivilege should be valid after restoration");
+        TEST_ASSERT(pLogonUserExExW != NULL, "pLogonUserExExW should be valid after restoration");
+
+        // Test normal function operation (should not crash)
+        bool testPrivilege = EnablePrivilege(false, SeTcbPrivilege);
+        // We don't assert result since it may depend on environment, but it should not crash
+        (void)testPrivilege; // Suppress unused variable warning
+
+        TEST_PASS("Normal function pointer operations work correctly after restoration");
+    }
+
+    TEST_PASS("Function Pointer Null Checking prevents critical vulnerabilities");
+}
+
+/**
  * @brief Test Canonical Path Validation (NEW REQUIREMENT)
  *
  * Test ini memvalidasi implementasi canonical path checking untuk path security.
@@ -530,6 +584,7 @@ int _tmain(int argc, _TCHAR* argv[]) {
             {"CheckAdministratorPrivileges", "TI privileges detected", TestCheckAdministratorPrivileges, false, 0.0},
             {"GetTrustedInstallerToken", "Handles NULL gracefully", TestGetTrustedInstallerToken, false, 0.0},
             {"SecurityValidations", "Path traversal prevented", TestSecurityValidations, false, 0.0},
+            {"FunctionPointerNullChecking", "Null pointer dereference prevented", TestFunctionPointerNullChecking, false, 0.0},
             {"CanonicalPathValidation", "Canonical path checking works", TestCanonicalPathValidation, false, 0.0}
         }},
         {"UTILITY TESTS", "🔧", {

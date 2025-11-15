@@ -380,7 +380,17 @@ HANDLE GetTrustedInstallerToken()
         tokenGroups->Groups[lastGroupIndex].Sid = trustedInstallerSid;
         tokenGroups->Groups[lastGroupIndex].Attributes = SE_GROUP_OWNER | SE_GROUP_ENABLED;
 
-        // STEP 7: Buat logon session dengan custom token groups
+        // STEP 7: CRITICAL SECURITY FIX: Validate LogonUserExExW function pointer sebelum usage
+        // Ini mencegah null pointer dereference yang bisa menyebabkan crash/critical vulnerability
+        if (!pLogonUserExExW)
+        {
+            // Function pointer not loaded - critical error
+            DWORD error = GetLastError();
+            (void)error; // Suppress unused variable in release builds
+            break; // Cannot proceed without valid function pointer
+        }
+
+        // Buat logon session dengan custom token groups
         // LogonUserExExW dengan custom groups dapat membuat token dengan privilege tinggi
         bool logonSuccess = pLogonUserExExW(
             (LPWSTR)L"SYSTEM",                    // Username: SYSTEM
