@@ -437,6 +437,7 @@ bool CreateProcessWithTIToken(LPCWSTR targetPath, DWORD priority);
  * @return TRUE jika memiliki admin privileges, FALSE jika tidak
  *
  * @note Trusted Installer privilege dianggap sebagai "super admin"
+ * @warning CPPcheck may flag this as "unused" but it is USED in Test.cpp unit tests
  */
 BOOL CheckAdministratorPrivileges();
 

@@ -46,6 +46,8 @@ bool RunExecutableFromCommandLine(const AnsiString& exePath, int priority);
  * @param lpCmdLine          Command line string (tidak digunakan, gunakan ParamStr)
  * @param nCmdShow          Flag untuk menampilkan window (tidak digunakan di VCL)
  * @return Exit code aplikasi (0 = success, 1 = error)
+ *
+ * @warning CPPcheck may flag this as "unused" but it is CALLED by Windows OS loader
  */
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {

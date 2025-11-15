@@ -13,9 +13,15 @@ Src\Core.cpp:17:0: information: Include file: <cstdio> not found. Please note: C
 Src\Core.cpp:18:0: information: Include file: <SysUtils.hpp> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
 #include <SysUtils.hpp>
 ^
+Src\Core.cpp:19:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
 Src\Core.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
 
 ^
+Src\Core.cpp:564:127: style: Clarify calculation precedence for '%' and '?'. [clarifyCalculation]
+        if (!privilegesMemory.Allocate(privilegesSize / sizeof(TOKEN_PRIVILEGES) + (privilegesSize % sizeof(TOKEN_PRIVILEGES) ? 1 : 0))) {
+                                                                                                                              ^
 Src\Form.cpp:14:0: information: Include file: <vcl.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
 #include <vcl.h>
 ^
@@ -46,11 +52,11 @@ Src\Main.cpp:21:0: information: Include file: "Core.h" not found. [missingInclud
 Src\Main.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
 
 ^
-Src\Core.cpp:461:6: style: The function 'CheckAdministratorPrivileges' is never used. [unusedFunction]
+Src\Core.cpp:532:6: style: The function 'CheckAdministratorPrivileges' is never used. [unusedFunction]
 BOOL CheckAdministratorPrivileges()
      ^
-Src\Main.cpp:50:12: style: The function '_tWinMain' is never used. [unusedFunction]
+Src\Main.cpp:52:12: style: The function '_tWinMain' is never used. [unusedFunction]
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
            ^
-nofile:0:0: information: Active checkers: 169/966 (use --checkers-report=<filename> to see details) [checkersReport]
+nofile:0:0: information: Active checkers: 171/966 (use --checkers-report=<filename> to see details) [checkersReport]
 
