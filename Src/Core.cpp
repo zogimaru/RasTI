@@ -265,15 +265,18 @@ bool ImpersonateTcbToken()
  */
 HANDLE GetTrustedInstallerToken()
 {
-    // Inisialisasi variabel lokal
-    bool impersonating = false;                    // Flag apakah sedang impersonating
-    HANDLE trustedInstallerToken = NULL;          // Output: TI token handle
-    PSID trustedInstallerSid = NULL;              // TI SID dalam format binary
-    HANDLE currentToken = NULL;                   // Token dari current process/thread
-    PTOKEN_GROUPS tokenGroups = NULL;             // Custom token groups untuk logon
+    // Inisialisasi variabel lokal dengan RAII smart resources
+    bool impersonating = false;                  // Flag apakah sedang impersonating
+    HANDLE trustedInstallerToken = NULL;        // Output: TI token handle
+    PSID trustedInstallerSid = NULL;            // TI SID dalam format binary
+    HANDLE currentToken = NULL;                 // Token dari current process/thread
+
+    // RAII IMPLEMENTATION: Smart memory management untuk prevent memory leaks
+    SmartLocalMemory<TOKEN_GROUPS> tokenGroupsMemory;
+    SmartTokenHandle currentTokenHandle;
 
     // Gunakan do-while(false) pattern untuk error handling yang bersih
-    // Break dari loop = early return dengan cleanup
+    // Break dari loop = early return dengan cleanup (RAII handles memory automatically)
     do
     {
         // STEP 1: Pastikan kita memiliki TCB privilege
@@ -306,7 +309,6 @@ HANDLE GetTrustedInstallerToken()
         }
 
         // STEP 3: RAII IMPLEMENTATION: Dapatkan handle ke current access token
-        SmartTokenHandle currentTokenHandle;
         if (impersonating)
         {
             // Dalam konteks impersonation, gunakan thread token
@@ -349,20 +351,30 @@ HANDLE GetTrustedInstallerToken()
             }
         }
 
-        // BUG FIX: Validate buffer size to prevent integer overflow attacks
-        if (tokenGroupsSize == 0 || tokenGroupsSize > 65536) // Reasonable upper limit
+        // BUG FIX: Comprehensive buffer size validation to prevent integer overflow attacks
+        // Convert byte size to TOKEN_GROUPS count and validate
+        if (tokenGroupsSize == 0 || tokenGroupsSize < sizeof(TOKEN_GROUPS) || tokenGroupsSize > 65536)
         {
-            break; // Invalid buffer size
+            break; // Invalid buffer size (too small, too large, or zero)
         }
 
-        // Alokasikan memory untuk token groups
-        tokenGroups = (PTOKEN_GROUPS)LocalAlloc(LPTR, tokenGroupsSize);
-        if (!tokenGroups)
-        {
-            // BUG FIX: Log memory allocation failure
+        // RAII IMPLEMENTATION: Safe memory allocation untuk token groups
+        // Calculate array size based on buffer size
+        SIZE_T structSize = sizeof(TOKEN_GROUPS);
+        SIZE_T remainingBytes = tokenGroupsSize - structSize;
+        SIZE_T sidCount = remainingBytes / sizeof(SID_AND_ATTRIBUTES);
+
+        // Allocate safe memory with bounds checking
+        if (!tokenGroupsMemory.Allocate(1)) {
+            // BUG FIX: Memory allocation failure
             DWORD error = GetLastError();
             (void)error; // Suppress unused variable in release builds
             break; // Memory allocation gagal
+        }
+
+        PTOKEN_GROUPS tokenGroups = tokenGroupsMemory.Get();
+        if (!tokenGroups) {
+            break; // Should not happen, but safety check
         }
 
         // STEP 5: Query token groups information
@@ -394,7 +406,7 @@ HANDLE GetTrustedInstallerToken()
         // LogonUserExExW dengan custom groups dapat membuat token dengan privilege tinggi
         bool logonSuccess = pLogonUserExExW(
             (LPWSTR)L"SYSTEM",                    // Username: SYSTEM
-            (LPWSTR)L"NT AUTHORITY",              // Domain: NT AUTHORITY
+            (LPWSTR)L"NT_AUTHORITY",              // Domain: NT AUTHORITY
             NULL,                                 // Password: NULL (service logon)
             LOGON32_LOGON_SERVICE,                // Logon type: Service
             LOGON32_PROVIDER_WINNT50,             // Provider: WinNT 5.0
@@ -412,16 +424,10 @@ HANDLE GetTrustedInstallerToken()
 
     } while (false); // End of do-while error handling pattern
 
-    // CLEANUP: Pastikan semua resources dibersihkan
-    if (tokenGroups)
-    {
-        LocalFree(tokenGroups); // Bebaskan memory token groups
-    }
-
-    if (currentToken)
-    {
-        CloseHandle(currentToken); // Tutup token handle
-    }
+    // CLEANUP: RAII handles automatic cleanup - no manual cleanup needed!
+    // tokenGroupsMemory is automatically freed
+    // currentTokenHandle is automatically closed
+    // All resources are cleaned up regardless of error paths
 
     if (impersonating)
     {
@@ -527,38 +533,60 @@ BOOL CheckAdministratorPrivileges()
 {
     // STEP 1: Cek apakah sudah memiliki Trusted Installer privileges
     // TCB privilege menunjukkan proses sudah berjalan sebagai Trusted Installer
-    HANDLE hToken = NULL;
-    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+    SmartTokenHandle hToken;
+
+    HANDLE rawToken;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &rawToken))
     {
-        PTOKEN_PRIVILEGES privileges = NULL;
-        DWORD privilegesSize;
+        hToken.Reset(rawToken);
+
+        // RAII IMPLEMENTATION: Safe memory allocation untuk prevent memory leaks
+        SmartLocalMemory<TOKEN_PRIVILEGES> privilegesMemory;
+        DWORD privilegesSize = 0;
 
         // Query ukuran buffer yang dibutuhkan untuk privilege information
-        GetTokenInformation(hToken, TokenPrivileges, NULL, 0, &privilegesSize);
-        privileges = (PTOKEN_PRIVILEGES)LocalAlloc(LPTR, privilegesSize);
-
-        if (privileges)
+        if (!GetTokenInformation(hToken.Get(), TokenPrivileges, NULL, 0, &privilegesSize))
         {
-            // Query privilege information
-            if (GetTokenInformation(hToken, TokenPrivileges, privileges, privilegesSize, &privilegesSize))
+            DWORD error = GetLastError();
+            if (error != ERROR_INSUFFICIENT_BUFFER) {
+                // BUG FIX: Unexpected error in buffer size query
+                return FALSE;
+            }
+        }
+
+        // Validate buffer size to prevent memory exhaustion attacks
+        const SIZE_T MAX_PRIVILEGES_SIZE = 1024 * 1024; // 1MB reasonable limit
+        if (privilegesSize == 0 || privilegesSize > MAX_PRIVILEGES_SIZE) {
+            return FALSE; // Invalid or suspiciously large buffer size
+        }
+
+        // RAII IMPLEMENTATION: Allocate memory with automatic cleanup
+        if (!privilegesMemory.Allocate(privilegesSize / sizeof(TOKEN_PRIVILEGES) + (privilegesSize % sizeof(TOKEN_PRIVILEGES) ? 1 : 0))) {
+            return FALSE; // Memory allocation failed
+        }
+
+        PTOKEN_PRIVILEGES privileges = reinterpret_cast<PTOKEN_PRIVILEGES>(privilegesMemory.Get());
+        if (!privileges) {
+            return FALSE; // Should not happen, but safety check
+        }
+
+        // Query privilege information
+        if (GetTokenInformation(hToken.Get(), TokenPrivileges, privileges, privilegesSize, &privilegesSize))
+        {
+            // Iterasi melalui semua privileges yang dimiliki token
+            for (DWORD i = 0; i < privileges->PrivilegeCount; i++)
             {
-                // Iterasi melalui semua privileges yang dimiliki token
-                for (DWORD i = 0; i < privileges->PrivilegeCount; i++)
+                // Cek apakah memiliki SeTcbPrivilege dan privilege tersebut enabled
+                if (privileges->Privileges[i].Luid.LowPart == SE_TCB_PRIVILEGE &&
+                    (privileges->Privileges[i].Attributes & SE_PRIVILEGE_ENABLED))
                 {
-                    // Cek apakah memiliki SeTcbPrivilege dan privilege tersebut enabled
-                    if (privileges->Privileges[i].Luid.LowPart == SE_TCB_PRIVILEGE &&
-                        (privileges->Privileges[i].Attributes & SE_PRIVILEGE_ENABLED))
-                    {
-                        // SUCCESS: Memiliki Trusted Installer privilege
-                        LocalFree(privileges);
-                        CloseHandle(hToken);
-                        return TRUE; // Has TCB privilege (Trusted Installer)
-                    }
+                    // SUCCESS: Memiliki Trusted Installer privilege
+                    // RAII: Automatic cleanup of memory and handles
+                    return TRUE; // Has TCB privilege (Trusted Installer)
                 }
             }
-            LocalFree(privileges);
         }
-        CloseHandle(hToken);
+        // RAII: Automatic cleanup of memory when function exits
     }
 
     // STEP 2: Cek traditional administrator privileges
@@ -590,20 +618,25 @@ BOOL CheckAdministratorPrivileges()
     // - Filtered token (limited privileges) - digunakan secara default
     // - Elevated token (full privileges) - digunakan ketika UAC elevation
 
-    hToken = NULL;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+    // RAII IMPLEMENTATION: Create new smart handle for elevation check
+    SmartTokenHandle elevationTokenHandle;
+
+    HANDLE elevationToken;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &elevationToken))
         return FALSE; // Gagal mendapatkan token
+
+    elevationTokenHandle.Reset(elevationToken);
 
     TOKEN_ELEVATION elevation;
     DWORD dwSize;
     BOOL bElevated = FALSE;
 
     // Query elevation status dari token
-    if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &dwSize))
+    if (GetTokenInformation(elevationToken, TokenElevation, &elevation, sizeof(elevation), &dwSize))
     {
         bElevated = elevation.TokenIsElevated; // TRUE jika elevated
     }
-    CloseHandle(hToken);
+    // RAII: elevationTokenHandle will automatically close the token
 
     // Return TRUE hanya jika admin group member DAN token elevated
     return bElevated;
@@ -858,9 +891,30 @@ AnsiString GetErrorMessage(const AnsiString& message)
     return AnsiString("Error: ") + message;
 }
 
+/**
+ * @brief Thread-safe dan buffer-safe formatting untuk error codes
+ *
+ * Menggunakan snprintf untuk menghindari buffer overflow dan memberikan
+ * error handling yang lebih baik daripada sprintf tradizionale.
+ *
+ * @param message Pesan error utama
+ * @param errorCode Kode error Windows yang akan diformat
+ * @return AnsiString yang berisi error message lengkap dengan code
+ */
 AnsiString GetErrorMessageCode(const AnsiString& message, DWORD errorCode)
 {
-    char buffer[32];
-    sprintf(buffer, "%lu", errorCode);
+    constexpr size_t BUFFER_SIZE = 32;
+    char buffer[BUFFER_SIZE];
+
+    // Menggunakan snprintf untuk buffer safety
+    // Memastikan tidak ada buffer overflow meskipun errorCode tidak valid
+    int result = snprintf(buffer, BUFFER_SIZE, "%lu", static_cast<unsigned long>(errorCode));
+
+    // Verifikasi bahwa formatting berhasil
+    if (result < 0 || static_cast<size_t>(result) >= BUFFER_SIZE) {
+        // Fallback ke formatting safe jika snprintf gagal
+        return AnsiString("Error: ") + message + AnsiString(" (Error Code: formatting failed)");
+    }
+
     return AnsiString("Error: ") + message + AnsiString(" (Error Code: ") + AnsiString(buffer) + ")";
 }

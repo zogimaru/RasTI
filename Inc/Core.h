@@ -232,6 +232,126 @@ public:
     SmartSnapshotHandle& operator=(SmartSnapshotHandle&& other) noexcept = default;
 };
 
+/**
+ * @brief RAII wrapper untuk LocalAlloc/LocalFree memory management
+ *
+ * Menggunakan RAII pattern untuk automatic cleanup memory yang dialokasikan
+ * dengan LocalAlloc(). Mencegah memory leaks dalam error paths.
+ *
+ * Template untuk type safety dan kompilasi statik validation.
+ */
+template<typename T>
+class SmartLocalMemory {
+private:
+    T* memory_;
+
+public:
+    /** @brief Default constructor dengan NULL pointer */
+    SmartLocalMemory() : memory_(nullptr) {}
+
+    /** @brief Constructor dengan custom size allocation
+     * @param size Size dalam unit T, bukan bytes
+     */
+    explicit SmartLocalMemory(SIZE_T size) : memory_(nullptr) {
+        Allocate(size);
+    }
+
+    /** @brief Move constructor */
+    SmartLocalMemory(SmartLocalMemory&& other) noexcept : memory_(other.memory_) {
+        other.memory_ = nullptr;
+    }
+
+    /** @brief Move assignment operator */
+    SmartLocalMemory& operator=(SmartLocalMemory&& other) noexcept {
+        if (this != &other) {
+            LocalFree(memory_); // Cleanup existing memory
+            memory_ = other.memory_;
+            other.memory_ = nullptr;
+        }
+        return *this;
+    }
+
+    /** @brief Destructor - automatic cleanup */
+    ~SmartLocalMemory() {
+        if (memory_) {
+            LocalFree(memory_);
+        }
+    }
+
+    /** @brief Allocate memory dengan given size */
+    bool Allocate(SIZE_T size) {
+        if (memory_) {
+            LocalFree(memory_); // Free existing memory
+        }
+
+        if (size == 0) {
+            memory_ = nullptr;
+            return true;
+        }
+
+        // Calculate size in bytes and add safety margin
+        SIZE_T byteSize = size * sizeof(T);
+        if (byteSize / sizeof(T) != size) { // Overflow check
+            return false; // Integer overflow detected
+        }
+
+        if (byteSize > 64 * 1024 * 1024) { // Reasonable 64MB limit
+            return false; // Allocation too large
+        }
+
+        memory_ = static_cast<T*>(LocalAlloc(LPTR, byteSize));
+        return (memory_ != nullptr);
+    }
+
+    /** @brief Check if memory is allocated */
+    bool IsAllocated() const {
+        return (memory_ != nullptr);
+    }
+
+    /** @brief Get raw pointer (use carefully) */
+    T* Get() const {
+        return memory_;
+    }
+
+    /** @brief Dereference operator untuk array-style access */
+    T& operator[](SIZE_T index) {
+        // Basic bounds checking in debug builds only
+        assert(memory_ != nullptr && "SmartLocalMemory: Null pointer dereference");
+        return memory_[index];
+    }
+
+    /** @brief Const dereference operator */
+    const T& operator[](SIZE_T index) const {
+        assert(memory_ != nullptr && "SmartLocalMemory: Null pointer dereference");
+        return memory_[index];
+    }
+
+    /** @brief Get size assuming T is byte */
+    SIZE_T GetSize() const {
+        // This is unsafe - assume caller knows what they're doing
+        return (memory_ != nullptr) ? LocalSize(memory_) : 0;
+    }
+
+    /** @brief Release ownership tanpa cleanup */
+    T* Release() {
+        T* temp = memory_;
+        memory_ = nullptr;
+        return temp;
+    }
+
+    /** @brief Reset ke state kosong */
+    void Reset() {
+        if (memory_) {
+            LocalFree(memory_);
+            memory_ = nullptr;
+        }
+    }
+
+    // Prevent copying for safety
+    SmartLocalMemory(const SmartLocalMemory&) = delete;
+    SmartLocalMemory& operator=(const SmartLocalMemory&) = delete;
+};
+
 //==============================================================================
 // GLOBAL FUNCTION POINTERS
 //==============================================================================

@@ -71,6 +71,12 @@ Tmp/
 Thumbs.db
 Desktop.ini
 
+# Additional build artifacts per explicit instructions
+*.exe
+ build/
+obj/
+*.pdb
+
 # IDE files
 *.cbproj.local
 *.groupproj.local

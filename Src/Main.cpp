@@ -81,12 +81,34 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 					// Extract nilai priority setelah colon
 					AnsiString priorityStr = param.SubString(param.Pos(":") + 1, param.Length());
 
-					// VALIDATION: Pastikan priority string hanya berisi digit
+					// SECURITY FIX: Comprehensive priority string validation
+					// Mencegah integer overflow/underflow dan invalid input
 					bool isValidPriorityStr = true;
-					for (int j = 1; j <= priorityStr.Length(); j++) {
-						if (!isdigit(priorityStr[j])) {
-							isValidPriorityStr = false;
-							break;
+
+					// CRITICAL BUG FIX: Check for empty priority string
+					if (priorityStr.IsEmpty()) {
+						isValidPriorityStr = false;
+					}
+					// Length check to prevent extremely long inputs
+					else if (priorityStr.Length() > 10) { // Reasonable max for integer string
+						isValidPriorityStr = false;
+					}
+					else {
+						// Validate each character is digit and first character is not zero
+						// (leading zeros could indicate octal interpretation in some conversions)
+						for (int j = 1; j <= priorityStr.Length(); j++) {
+							char ch = priorityStr[j];
+							if (!isdigit(static_cast<unsigned char>(ch))) {
+								isValidPriorityStr = false;
+								break;
+							}
+							// Additional safety: reject leading zeros for single digit numbers
+							// (e.g., "01" is technically valid but suspicious)
+							if (j == 1 && priorityStr.Length() == 1 && ch == '0') {
+								// NOTE: "0" would be invalid priority anyway, so this is safe
+								isValidPriorityStr = false;
+								break;
+							}
 						}
 					}
 
@@ -95,8 +117,26 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 						return 1; // Exit dengan error code
 					}
 
-					// Convert string ke integer dengan default NORMAL (3)
-					int prioValue = StrToIntDef(priorityStr, 3);
+					// SECURITY FIX: Safe string-to-integer conversion dengan bounds checking
+					int prioValue = 0;
+					try {
+						// Use safe conversion with explicit bounds checking
+						// Avoid StrToIntDef which may have undefined behavior on overflow
+						prioValue = StrToInt(priorityStr);
+					}
+					catch (const Exception&) {
+						// Conversion failed - invalid integer format
+						printf("Error: Priority value conversion failed.\n");
+						return 1;
+					}
+
+					// Double-check converted value is within expected range
+					// (belt-and-suspenders approach for security)
+					if (prioValue < INT_MIN/2 || prioValue > INT_MAX/2) {
+						// Value is extreme - likely indicates conversion bug
+						printf("Error: Priority value out of safe range.\n");
+						return 1;
+					}
 
 					// VALIDATION: Pastikan priority dalam range 1-6
 					if (prioValue < 1 || prioValue > 6) {
