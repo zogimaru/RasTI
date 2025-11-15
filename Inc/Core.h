@@ -6,7 +6,7 @@
  * dan manajemen Trusted Installer token dalam sistem Windows.
  *
  * @author RasTI Development Team
- * @version 1.1.0.0
+ * @version 1.2.0.0
  * @date 2025
  */
 

@@ -172,7 +172,7 @@ A: TI token creation requires SeDebugPrivilege or SeTcbPrivilege, which are only
 
 ## Version Information
 
-- **Current Version**: 1.1.0.0
+- **Current Version**: 1.2.0.0
 - **Release Date**: 2025
 - **Supported Platforms**: Windows 7-11 (32/64-bit)
 - **Requirements**: RAD Studio C++ Builder, Windows SDK
@@ -357,7 +357,7 @@ J: Pembuatan TI token memerlukan SeDebugPrivilege atau SeTcbPrivilege, yang hany
 
 ## Informasi Versi
 
-- **Versi Saat Ini**: 1.1.0.0
+- **Versi Saat Ini**: 1.2.0.0
 - **Tanggal Rilis**: 2025
 - **Platform Didukung**: Windows 7-11 (32/64-bit)
 - **Kebutuhan**: RAD Studio C++ Builder, Windows SDK
