@@ -148,114 +148,93 @@ bool EnablePrivilege(bool impersonating, int privilege_value)
  */
 bool ImpersonateTcbToken()
 {
-    // BUG FIX: Initialize handles to NULL for proper cleanup
-    HANDLE hSnapshot = INVALID_HANDLE_VALUE;
-    HANDLE hProcess = NULL;
-    HANDLE hToken = NULL;
+    // RAII IMPLEMENTATION: Smart handles with automatic cleanup
+    SmartSnapshotHandle hSnapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    SmartProcessHandle hProcess;
+    SmartTokenHandle hToken;
 
-    // Use do-while(false) pattern for proper error handling and cleanup
-    bool result = false;
+    // Check if snapshot creation failed
+    if (!hSnapshot.IsValid())
+    {
+        // BUG FIX: Log error for debugging
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable in release builds
+        return false; // Gagal membuat snapshot
+    }
+
+    // STEP 2: Persiapkan struktur untuk enumerasi proses
+    PROCESSENTRY32W entry = { 0 };
+    entry.dwSize = sizeof(entry); // Wajib diisi untuk Process32First/Next
+
+    // Mulai enumerasi dari proses pertama
+    if (!Process32FirstW(hSnapshot.Get(), &entry))
+    {
+        // BUG FIX: Check for actual errors, not just end of list
+        // ERROR_NO_MORE_FILES is acceptable, other errors are not
+        DWORD error = GetLastError();
+        if (error != ERROR_NO_MORE_FILES) {
+            return false; // Actual error in enumeration
+        }
+    }
+
+    // STEP 3: Cari proses winlogon.exe dalam snapshot
+    DWORD winlogonPid = 0;
     do
     {
-        // STEP 1: Buat snapshot dari semua proses yang sedang berjalan
-        // TH32CS_SNAPPROCESS = snapshot process list
-        hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (hSnapshot == INVALID_HANDLE_VALUE)
+        // Bandingkan nama executable (case-insensitive)
+        if (!_wcsicmp(L"winlogon.exe", entry.szExeFile))
         {
-            // BUG FIX: Log error for debugging
-            DWORD error = GetLastError();
-            (void)error; // Suppress unused variable in release builds
-            break; // Gagal membuat snapshot
+            winlogonPid = entry.th32ProcessID; // Simpan PID winlogon
+            break; // Keluar dari loop jika ditemukan
         }
+    } while (Process32NextW(hSnapshot.Get(), &entry)); // Lanjut ke proses berikutnya
 
-        // STEP 2: Persiapkan struktur untuk enumerasi proses
-        PROCESSENTRY32W entry = { 0 };
-        entry.dwSize = sizeof(entry); // Wajib diisi untuk Process32First/Next
-
-        // Mulai enumerasi dari proses pertama
-        if (!Process32FirstW(hSnapshot, &entry))
-        {
-            // BUG FIX: Check for actual errors, not just end of list
-            // ERROR_NO_MORE_FILES is acceptable, other errors are not
-            DWORD error = GetLastError();
-            if (error != ERROR_NO_MORE_FILES) {
-                break; // Actual error in enumeration
-            }
-        }
-
-        // STEP 3: Cari proses winlogon.exe dalam snapshot
-        DWORD winlogonPid = 0;
-        do
-        {
-            // Bandingkan nama executable (case-insensitive)
-            if (!_wcsicmp(L"winlogon.exe", entry.szExeFile))
-            {
-                winlogonPid = entry.th32ProcessID; // Simpan PID winlogon
-                break; // Keluar dari loop jika ditemukan
-            }
-        } while (Process32NextW(hSnapshot, &entry)); // Lanjut ke proses berikutnya
-
-        // Jika winlogon tidak ditemukan, return false
-        if (!winlogonPid)
-        {
-            break; // Winlogon process not found
-        }
-
-        // STEP 4: Buka handle ke proses winlogon
-        // PROCESS_QUERY_INFORMATION = dapat query informasi proses
-        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, winlogonPid);
-        if (!hProcess)
-        {
-            // BUG FIX: Log error code for security auditing
-            DWORD error = GetLastError();
-            (void)error; // Suppress unused variable in release builds
-            break; // Gagal membuka proses (kemungkinan permission denied)
-        }
-
-        // STEP 5: Ekstrak access token dari proses winlogon
-        // TOKEN_QUERY = dapat query token information
-        // TOKEN_DUPLICATE = dapat duplicate token
-        // TOKEN_IMPERSONATE = dapat impersonate token
-        bool tokenSuccess = OpenProcessToken(hProcess, TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &hToken);
-        if (!tokenSuccess)
-        {
-            // BUG FIX: Log error for debugging and security audit
-            DWORD error = GetLastError();
-            (void)error; // Suppress unused variable in release builds
-            break; // Gagal mendapatkan token
-        }
-
-        // STEP 6: Impersonate token winlogon
-        // Ini memberikan kita LocalSystem privileges termasuk TCB privilege
-        bool impersonateSuccess = ImpersonateLoggedOnUser(hToken);
-        if (!impersonateSuccess)
-        {
-            // BUG FIX: Log impersonation failure
-            DWORD error = GetLastError();
-            (void)error; // Suppress unused variable in release builds
-            break; // Impersonation gagal
-        }
-
-        // SUCCESS: Sekarang thread ini berjalan dengan LocalSystem privileges
-        result = true;
-
-    } while (false);
-
-    // BUG FIX: Comprehensive cleanup - ensure all handles are closed
-    if (hSnapshot != INVALID_HANDLE_VALUE)
+    // Jika winlogon tidak ditemukan, return false
+    if (!winlogonPid)
     {
-        CloseHandle(hSnapshot);
-    }
-    if (hProcess)
-    {
-        CloseHandle(hProcess);
-    }
-    if (hToken)
-    {
-        CloseHandle(hToken);
+        return false; // Winlogon process not found
     }
 
-    return result;
+    // STEP 4: Buka handle ke proses winlogon
+    // PROCESS_QUERY_INFORMATION = dapat query informasi proses
+    hProcess.Reset(OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, winlogonPid));
+    if (!hProcess.IsValid())
+    {
+        // BUG FIX: Log error code for security auditing
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable in release builds
+        return false; // Gagal membuka proses (kemungkinan permission denied)
+    }
+
+    // STEP 5: Ekstrak access token dari proses winlogon
+    // TOKEN_QUERY = dapat query token information
+    // TOKEN_DUPLICATE = dapat duplicate token
+    // TOKEN_IMPERSONATE = dapat impersonate token
+    HANDLE rawTokenHandle;
+    bool tokenSuccess = OpenProcessToken(hProcess.Get(), TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &rawTokenHandle);
+    if (!tokenSuccess)
+    {
+        // BUG FIX: Log error for debugging and security audit
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable in release builds
+        return false; // Gagal mendapatkan token
+    }
+    hToken.Reset(rawTokenHandle); // Transfer ownership to smart handle
+
+    // STEP 6: Impersonate token winlogon
+    // Ini memberikan kita LocalSystem privileges termasuk TCB privilege
+    bool impersonateSuccess = ImpersonateLoggedOnUser(hToken.Get());
+    if (!impersonateSuccess)
+    {
+        // BUG FIX: Log impersonation failure
+        DWORD error = GetLastError();
+        (void)error; // Suppress unused variable in release builds
+        return false; // Impersonation gagal
+    }
+
+    // SUCCESS: Sekarang thread ini berjalan dengan LocalSystem privileges
+    // RAII: All handles automatically cleaned up when function exits
+    return true;
 }
 
 /**
@@ -325,29 +304,35 @@ HANDLE GetTrustedInstallerToken()
             break; // SID conversion gagal
         }
 
-        // STEP 3: Dapatkan handle ke current access token
-        // Jika sedang impersonating, gunakan thread token, jika tidak gunakan process token
+        // STEP 3: RAII IMPLEMENTATION: Dapatkan handle ke current access token
+        SmartTokenHandle currentTokenHandle;
         if (impersonating)
         {
             // Dalam konteks impersonation, gunakan thread token
-            if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &currentToken))
+            HANDLE threadToken;
+            if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &threadToken))
             {
                 // BUG FIX: Log thread token failure
                 DWORD error = GetLastError();
                 (void)error; // Suppress unused variable in release builds
                 break; // Gagal mendapatkan thread token
             }
+            currentTokenHandle.Reset(threadToken);
+            currentToken = threadToken; // Keep raw handle for compatibility
         }
         else
         {
             // Gunakan process token
-            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &currentToken))
+            HANDLE processToken;
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &processToken))
             {
                 // BUG FIX: Log process token failure
                 DWORD error = GetLastError();
                 (void)error; // Suppress unused variable in release builds
                 break; // Gagal mendapatkan process token
             }
+            currentTokenHandle.Reset(processToken);
+            currentToken = processToken; // Keep raw handle for compatibility
         }
 
         // STEP 4: Query informasi token groups untuk mengetahui ukuran buffer yang dibutuhkan

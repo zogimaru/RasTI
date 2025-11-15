@@ -131,13 +131,115 @@ typedef BOOL(WINAPI* _LogonUserExExW)(
 );
 
 //==============================================================================
+// RAII SMART HANDLE CLASSES FOR RESOURCE MANAGEMENT
+//==============================================================================
+
+/**
+ * @brief Smart handle base class untuk Windows HANDLE objects
+ *
+ * Menggunakan RAII pattern untuk automatic resource cleanup.
+ * CloseHandle() dipanggil otomatis pada destruction.
+ */
+class SmartHandle {
+protected:
+    HANDLE handle_;
+
+public:
+    /** @brief Default constructor dengan invalid handle */
+    SmartHandle() : handle_(INVALID_HANDLE_VALUE) {}
+
+    /** @brief Constructor dengan existing handle */
+    explicit SmartHandle(HANDLE h) : handle_(h) {}
+
+    /** @brief Move constructor */
+    SmartHandle(SmartHandle&& other) noexcept : handle_(other.handle_) {
+        other.handle_ = INVALID_HANDLE_VALUE;
+    }
+
+    /** @brief Move assignment operator */
+    SmartHandle& operator=(SmartHandle&& other) noexcept {
+        if (this != &other) {
+            CloseHandle(handle_); // Cleanup existing handle
+            handle_ = other.handle_;
+            other.handle_ = INVALID_HANDLE_VALUE;
+        }
+        return *this;
+    }
+
+    /** @brief Destructor - automatic cleanup */
+    ~SmartHandle() {
+        if (IsValid()) {
+            CloseHandle(handle_);
+        }
+    }
+
+    /** @brief Check if handle is valid */
+    bool IsValid() const { return handle_ != INVALID_HANDLE_VALUE && handle_ != NULL; }
+
+    /** @brief Get raw handle (use carefully) */
+    HANDLE Get() const { return handle_; }
+
+    /** @brief Release ownership tanpa cleanup */
+    HANDLE Release() {
+        HANDLE temp = handle_;
+        handle_ = INVALID_HANDLE_VALUE;
+        return temp;
+    }
+
+    /** @brief Reset dengan handle baru */
+    void Reset(HANDLE h = INVALID_HANDLE_VALUE) {
+        if (IsValid()) {
+            CloseHandle(handle_);
+        }
+        handle_ = h;
+    }
+
+    // Prevent copying for safety
+    SmartHandle(const SmartHandle&) = delete;
+    SmartHandle& operator=(const SmartHandle&) = delete;
+};
+
+/**
+ * @brief Smart handle untuk process handles (OpenProcess result)
+ */
+class SmartProcessHandle : public SmartHandle {
+public:
+    SmartProcessHandle() : SmartHandle() {}
+    explicit SmartProcessHandle(HANDLE h) : SmartHandle(h) {}
+    SmartProcessHandle(SmartProcessHandle&& other) noexcept = default;
+    SmartProcessHandle& operator=(SmartProcessHandle&& other) noexcept = default;
+};
+
+/**
+ * @brief Smart handle untuk access token handles (OpenProcessToken result)
+ */
+class SmartTokenHandle : public SmartHandle {
+public:
+    SmartTokenHandle() : SmartHandle() {}
+    explicit SmartTokenHandle(HANDLE h) : SmartHandle(h) {}
+    SmartTokenHandle(SmartTokenHandle&& other) noexcept = default;
+    SmartTokenHandle& operator=(SmartTokenHandle&& other) noexcept = default;
+};
+
+/**
+ * @brief Smart handle untuk ToolHelp snapshots (CreateToolhelp32Snapshot result)
+ */
+class SmartSnapshotHandle : public SmartHandle {
+public:
+    SmartSnapshotHandle() : SmartHandle() {}
+    explicit SmartSnapshotHandle(HANDLE h) : SmartHandle(h) {}
+    SmartSnapshotHandle(SmartSnapshotHandle&& other) noexcept = default;
+    SmartSnapshotHandle& operator=(SmartSnapshotHandle&& other) noexcept = default;
+};
+
+//==============================================================================
 // GLOBAL FUNCTION POINTERS
 //==============================================================================
 
-/** @brief Global function pointer untuk RtlAdjustPrivilege */
+/** @brief Global function pointer untuk RtlAdjustPrivilege dari ntdll.dll */
 extern _RtlAdjustPrivilege pRtlAdjustPrivilege;
 
-/** @brief Global function pointer untuk LogonUserExExW */
+/** @brief Global function pointer untuk LogonUserExExW dari advapi32.dll */
 extern _LogonUserExExW pLogonUserExExW;
 
 /**
