@@ -90,3 +90,6 @@ ehthumbs.db
 
 # Project-specific ignores
 RasTI Todo.md
+
+# Code analysis reports
+Docs/CPPcheck*

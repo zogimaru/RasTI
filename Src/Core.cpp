@@ -854,34 +854,34 @@ AnsiString FindExecutableInPath(const AnsiString& exeName)
         searchName += ".exe";
     }
 
-    // Split PATH by semicolons
-    TStringList* pathList = new TStringList();
-    try {
-        pathList->Delimiter = ';';
-        pathList->DelimitedText = pathStr;
+    // Split PATH by semicolons dengan RAII wrapper untuk automatic cleanup
+    SmartStringList pathList;
+    if (!pathList.IsAllocated()) {
+        return ""; // Gagal alokasi memory untuk string list
+    }
 
-        // Check each directory in PATH
-        for (int i = 0; i < pathList->Count; i++) {
-            AnsiString dir = pathList->Strings[i].Trim();
-            if (dir.IsEmpty()) continue;
+    pathList->Delimiter = ';';
+    pathList->DelimitedText = pathStr;
 
-            // Ensure directory ends with backslash
-            if (!dir.IsEmpty() && dir[dir.Length() - 1] != '\\') {
-                dir += "\\";
-            }
+    // Check each directory in PATH
+    for (int i = 0; i < pathList->Count; i++) {
+        AnsiString dir = pathList->Strings[i].Trim();
+        if (dir.IsEmpty()) continue;
 
-            AnsiString fullPath = dir + searchName;
+        // Ensure directory ends with backslash
+        if (!dir.IsEmpty() && dir[dir.Length() - 1] != '\\') {
+            dir += "\\";
+        }
 
-            // Check if file exists
-            if (FileExists(fullPath)) {
-                result = fullPath;
-                break;
-            }
+        AnsiString fullPath = dir + searchName;
+
+        // Check if file exists
+        if (FileExists(fullPath)) {
+            result = fullPath;
+            break;
         }
     }
-    __finally {
-        delete pathList;
-    }
+    // RAII: SmartStringList otomatis dibersihkan di destructor
 
     return result;
 }
