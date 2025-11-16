@@ -1,4 +1,4 @@
-# C++ Builder files
+# C++ Builder specific files
 *.obj
 *.exe
 *.dll
@@ -22,62 +22,58 @@ __history/
 __recovery/
 __astcache/
 
-# Prerequisites
+# Prerequisites and dependencies
 *.d
 
-# Compiled Object files
+# Compiled object and intermediate files
 *.slo
 *.lo
 *.o
-
-# Precompiled Headers
 *.gch
 
-# Linker files
+# Linker and debugger files
 *.ilk
-
-# Debugger Files
 *.pdb
 
-# Compiled Dynamic libraries
+# Compiled libraries (dynamic, static)
 *.so
 *.dylib
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
 
-# Executables
+# Executable files
 *.out
 *.app
 
-# Debug information files
+# Fortran module files
+*.mod
+*.smod
+
+# Debug info files
 *.dwo
 
-# Build directories
+# Build and output directories
 Build/
 Bin/
 Debug/
 Release/
 Tmp/
+build/
+obj/
 
-# Windows files
+# OS generated files
 Thumbs.db
 Desktop.ini
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 
-# Additional build artifacts per explicit instructions
-*.exe
- build/
-obj/
-*.pdb
-
-# IDE files
+# IDE and editor files
 *.cbproj.local
 *.groupproj.local
 .vscode/
@@ -86,16 +82,11 @@ obj/
 *.swo
 .clinerules/
 
-# Temporary files
+# Temporary and backup files
 *.tmp
 *.bak
 *~
 *.log
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
+# Project-specific ignores
+RasTI Todo.md
